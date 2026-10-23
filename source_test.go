@@ -245,6 +245,22 @@ func TestHandleConfigErrorsAreTerminalAndSecretFree(t *testing.T) {
 	}
 }
 
+func TestHandleLogsTheBoundedReasonForARejectedConfig(t *testing.T) {
+	t.Parallel()
+
+	result, _, logs := runScenario(t, "basic", func(s *replayScenario, _ *Request) { delete(s.Env, "JIRA_TOKEN") })
+	if result.State != sdk.ResultTerminal {
+		t.Fatalf("State = %q, want terminal", result.State)
+	}
+	var line logLine
+	if err := json.Unmarshal([]byte(strings.TrimSpace(logs)), &line); err != nil {
+		t.Fatalf("log is not one JSON line: %v", err)
+	}
+	if line.FailureClass != FailureInvalidConfig || line.Detail != "token_env JIRA_TOKEN did not resolve a credential" {
+		t.Fatalf("log line = %+v, want the bounded config reason", line)
+	}
+}
+
 func TestHandleIsIdempotentForTheSameClaim(t *testing.T) {
 	t.Parallel()
 

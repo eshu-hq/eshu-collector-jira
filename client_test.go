@@ -254,6 +254,27 @@ func TestChangelogWithoutPaginationMetadataIsOnePage(t *testing.T) {
 	}
 }
 
+func TestChangelogWalkStopsWhenAProviderAdvertisesPagesForever(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int64
+	stub := newJiraStub(t, func(w http.ResponseWriter, _ stubRequest) {
+		calls.Add(1)
+		// Entries with no items never fill the limit, and the page claims
+		// there is always more.
+		writeJSON(w, 200, `{"startAt":0,"maxResults":1,"total":1000000,"isLast":false,"values":[{"id":"1","items":[]}]}`)
+	})
+	client := newTestClient(t, stub.URL, "")
+	var stats CollectionStats
+	transitions, err := client.issueChangelog(t.Context(), Issue{ID: "10", Key: "K-10"}, 50, &stats)
+	if err != nil {
+		t.Fatalf("issueChangelog() error = %v", err)
+	}
+	if len(transitions) != 0 || calls.Load() != maxChangelogPages {
+		t.Fatalf("transitions=%d calls=%d, want 0 and exactly %d", len(transitions), calls.Load(), maxChangelogPages)
+	}
+}
+
 func TestChangelogRedactsSensitiveFieldValues(t *testing.T) {
 	t.Parallel()
 

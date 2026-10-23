@@ -6,6 +6,7 @@ package collector
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -65,7 +66,10 @@ func (h Handler) Handle(ctx context.Context, request Request) sdk.Result {
 	claim := request.Claim
 	settings, err := ParseSettings(request.Config, claim.Scope.ID, h.getenv)
 	if err != nil {
-		h.logFailure(claim, FailureInvalidConfig, "", 0, CollectionStats{})
+		// ConfigError text names config keys and environment variable names
+		// only, so it is safe for the operator log and the only place the
+		// reason for a rejected config is visible.
+		h.logConfigFailure(claim, err)
 		return budgetResult(claim, started, FailureInvalidConfig)
 	}
 	runCtx, cancel, ok := claimContext(ctx, claim, started, settings.Limits)
@@ -76,7 +80,7 @@ func (h Handler) Handle(ctx context.Context, request Request) sdk.Result {
 	}
 	client, err := h.newClient(settings.Target)
 	if err != nil {
-		h.logFailure(claim, FailureInvalidConfig, "", 0, CollectionStats{})
+		h.logConfigFailure(claim, err)
 		return budgetResult(claim, started, FailureInvalidConfig)
 	}
 	window := CollectionWindow{Since: started.Add(-settings.Target.UpdatedLookback), Until: started}
@@ -211,6 +215,7 @@ type logLine struct {
 	WorkItemID   string          `json:"work_item_id"`
 	Attempt      int             `json:"attempt"`
 	FailureClass string          `json:"failure_class,omitempty"`
+	Detail       string          `json:"detail,omitempty"`
 	Operation    string          `json:"operation,omitempty"`
 	HTTPStatus   int             `json:"http_status,omitempty"`
 	Facts        int             `json:"facts,omitempty"`
@@ -223,6 +228,21 @@ func (h Handler) logFailure(claim sdk.Claim, class string, operation string, sta
 		WorkItemID: claim.WorkItemID, Attempt: claim.Attempt, FailureClass: class, Operation: operation,
 		HTTPStatus: status, Stats: stats,
 	})
+}
+
+// logConfigFailure records a rejected configuration with its bounded reason.
+// Only a ConfigError or a client-construction error that never quotes its
+// input carries a detail; anything else logs the class alone.
+func (h Handler) logConfigFailure(claim sdk.Claim, err error) {
+	line := logLine{
+		Event: "jira.claim", Outcome: "failure", ScopeID: claim.Scope.ID, GenerationID: claim.GenerationID,
+		WorkItemID: claim.WorkItemID, Attempt: claim.Attempt, FailureClass: FailureInvalidConfig,
+	}
+	var configErr ConfigError
+	if errors.As(err, &configErr) {
+		line.Detail = configErr.Error()
+	}
+	h.emit(line)
 }
 
 func (h Handler) logSuccess(claim sdk.Claim, result sdk.Result, stats CollectionStats) {

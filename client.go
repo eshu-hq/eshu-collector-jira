@@ -19,15 +19,19 @@ import (
 )
 
 const (
-	defaultHTTPTimeout      = 30 * time.Second
-	defaultIssueLimit       = 50
-	defaultChangelogLimit   = 50
-	defaultRemoteLinkLimit  = 50
-	defaultMetadataLimit    = 100
-	maxIssueLimit           = 100
-	maxChangelogLimit       = 100
-	maxRemoteLinkLimit      = 100
-	maxMetadataLimit        = 500
+	defaultHTTPTimeout     = 30 * time.Second
+	defaultIssueLimit      = 50
+	defaultChangelogLimit  = 50
+	defaultRemoteLinkLimit = 50
+	defaultMetadataLimit   = 100
+	maxIssueLimit          = 100
+	maxChangelogLimit      = 100
+	maxRemoteLinkLimit     = 100
+	maxMetadataLimit       = 500
+	// maxChangelogPages bounds the changelog walk for one issue. A page can
+	// carry entries with no items, so the item limit alone would not stop a
+	// provider that keeps advertising more pages.
+	maxChangelogPages       = 100
 	maxJiraErrorBodyBytes   = 4096
 	jiraTimeLayout          = "2006-01-02T15:04:05.000-0700"
 	jiraJQLTimeLayout       = "2006-01-02 15:04"
@@ -210,7 +214,7 @@ func (c HTTPClient) issueChangelog(ctx context.Context, issue Issue, limit int, 
 	endpoint := path.Join(jiraIssueEndpointPrefix, issue.Key, "changelog")
 	transitions := make([]Transition, 0, limit)
 	startAt := 0
-	for len(transitions) < limit {
+	for pages := 0; len(transitions) < limit && pages < maxChangelogPages; pages++ {
 		query := url.Values{}
 		query.Set("maxResults", fmt.Sprintf("%d", min(limit-len(transitions), maxChangelogLimit)))
 		query.Set("startAt", fmt.Sprintf("%d", startAt))
