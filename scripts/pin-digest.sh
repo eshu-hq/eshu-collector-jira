@@ -8,7 +8,7 @@
 # After the first real digest lands, set placeholderDigestAllowed to false in
 # manifest_test.go so the gate fails on an unpinned manifest. The image cannot
 # carry its own digest, so a deployment stamps the reference it actually pulled
-# with `collector seed --image <repo>@sha256:<digest>`.
+# with `collector seed --image-ref <repo>@sha256:<digest>` (or COLLECTOR_IMAGE_REF).
 set -euo pipefail
 ref="${1:?usage: pin-digest.sh <repo:tag> [--write]}"
 write="${2:-}"

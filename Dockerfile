@@ -6,6 +6,9 @@
 #
 #   docker run IMAGE                      serves one claim from stdin
 #   docker run IMAGE seed --dest /home    seeds the binary and manifest
+#   ... seed --dest /home --image-ref REPO@sha256:<digest>
+#       (or COLLECTOR_IMAGE_REF) also stamps the deployed digest into the
+#       seeded manifest; the image cannot embed its own digest.
 FROM golang:1.26.5-alpine@sha256:0178a641fbb4858c5f1b48e34bdaabe0350a330a1b1149aabd498d0699ff5fb2 AS build
 WORKDIR /src
 COPY go.mod go.sum ./

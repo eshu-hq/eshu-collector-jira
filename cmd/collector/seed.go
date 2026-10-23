@@ -21,24 +21,29 @@ import (
 const (
 	seededBinaryName   = "collector"
 	seededManifestName = "manifest.yaml"
+	// imageRefEnv supplies the digest-pinned image reference when --image-ref
+	// is not given; the flag wins.
+	imageRefEnv = "COLLECTOR_IMAGE_REF"
 )
 
 var (
-	imageDigestPattern       = regexp.MustCompile(`^[a-z0-9][a-z0-9./_-]*(:[A-Za-z0-9._-]+)?@sha256:[0-9a-f]{64}$`)
+	imageRefPattern          = regexp.MustCompile(`^[^@\s]+@sha256:[0-9a-f]{64}$`)
 	manifestImageLinePattern = regexp.MustCompile(`(?m)^([ \t]*image:[ \t]*)\S+[ \t]*$`)
 )
 
-// runSeed implements `collector seed --dest DIR [--image REF@sha256:DIGEST]`.
+// runSeed implements `collector seed --dest DIR [--image-ref REF@sha256:DIGEST]`.
 // It writes DIR/collector (this binary, mode 0755) and DIR/manifest.yaml (the
 // embedded manifest, mode 0644). Re-running it is safe: files are replaced
-// atomically with identical content. The optional --image flag stamps the
-// digest-pinned image reference the operator deployed into the manifest's
-// artifact entry, because an image cannot embed its own digest.
-func runSeed(args []string, stdout io.Writer) error {
+// atomically with identical content. --image-ref, or the COLLECTOR_IMAGE_REF
+// environment variable when the flag is absent, stamps the digest-pinned image
+// reference the operator deployed into the manifest's artifact entry, because
+// an image cannot embed its own digest. Without either, the repository
+// placeholder is written unchanged.
+func runSeed(args []string, stdout io.Writer, getenv func(string) string) error {
 	flags := flag.NewFlagSet("seed", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	dest := flags.String("dest", "", "directory to write the collector binary and manifest into")
-	image := flags.String("image", "", "optional digest-pinned image reference to record in the manifest artifact")
+	imageRef := flags.String("image-ref", "", "optional digest-pinned image reference (name@sha256:<64 hex>) to record in the manifest artifact; defaults to $"+imageRefEnv)
 	if err := flags.Parse(args); err != nil {
 		return fmt.Errorf("seed: %w", err)
 	}
@@ -49,7 +54,7 @@ func runSeed(args []string, stdout io.Writer) error {
 	if err != nil {
 		return errors.New("seed: resolve own executable")
 	}
-	manifest, err := manifestFor(collector.ManifestYAML, *image)
+	manifest, err := manifestFor(collector.ManifestYAML, firstNonBlank(*imageRef, getenv(imageRefEnv)))
 	if err != nil {
 		return err
 	}
@@ -61,20 +66,33 @@ func runSeed(args []string, stdout io.Writer) error {
 	return err
 }
 
-// manifestFor returns the manifest bytes to seed, stamping image into the
+func firstNonBlank(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+// manifestFor returns the manifest bytes to seed, stamping the image reference into the
 // artifact entry when one is given.
 func manifestFor(manifest []byte, image string) ([]byte, error) {
 	image = strings.TrimSpace(image)
 	if image == "" {
 		return manifest, nil
 	}
-	if !imageDigestPattern.MatchString(image) {
-		return nil, errors.New("seed: --image must be a digest-pinned reference (name@sha256:<64 hex>)")
+	if !imageRefPattern.MatchString(image) {
+		return nil, errors.New("seed: --image-ref must be a digest-pinned reference (name@sha256:<64 hex>)")
 	}
 	if len(manifestImageLinePattern.FindAllIndex(manifest, -1)) != 1 {
 		return nil, errors.New("seed: manifest must declare exactly one artifact image to stamp")
 	}
-	return manifestImageLinePattern.ReplaceAll(manifest, []byte("${1}"+image)), nil
+	// ReplaceAllFunc, not a template, so a reference holding "$" is literal.
+	return manifestImageLinePattern.ReplaceAllFunc(manifest, func(line []byte) []byte {
+		prefix := manifestImageLinePattern.FindSubmatch(line)[1]
+		return append(append([]byte(nil), prefix...), image...)
+	}), nil
 }
 
 // seed copies the executable and writes the manifest into dest, returning the

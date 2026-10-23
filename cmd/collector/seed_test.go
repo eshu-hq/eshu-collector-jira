@@ -127,9 +127,13 @@ func TestManifestForStampsOnlyADigestPinnedImage(t *testing.T) {
 	}
 	unchanged, err := manifestFor(collector.ManifestYAML, "  ")
 	if err != nil || !bytes.Equal(unchanged, collector.ManifestYAML) {
-		t.Fatalf("a blank --image must leave the manifest untouched (err %v)", err)
+		t.Fatalf("a blank --image-ref must leave the manifest untouched (err %v)", err)
 	}
-	for _, bad := range []string{"ghcr.io/eshu-hq/eshu-collector-jira:latest", "ghcr.io/x@sha256:abc", "ghcr.io/x@sha256:" + strings.Repeat("G", 64), "a b@sha256:" + strings.Repeat("a", 64)} {
+	for _, bad := range []string{
+		"ghcr.io/eshu-hq/eshu-collector-jira:latest", "ghcr.io/x@sha256:abc", "ghcr.io/x@sha256:" + strings.Repeat("G", 64),
+		"ghcr.io/x@sha256:" + strings.Repeat("A", 64), "a b@sha256:" + strings.Repeat("a", 64), "@sha256:" + strings.Repeat("a", 64),
+		"a@@sha256:" + strings.Repeat("a", 64), "ghcr.io/x@sha256:" + strings.Repeat("a", 64) + " trailing",
+	} {
 		if _, err := manifestFor(collector.ManifestYAML, bad); err == nil {
 			t.Errorf("manifestFor(%q) error = nil, want rejection", bad)
 		}
@@ -169,7 +173,7 @@ func TestSeedFromTheBuiltBinary(t *testing.T) {
 		t.Fatalf("go build error = %v\n%s", err, output)
 	}
 	dest := filepath.Join(dir, "home", "component")
-	seedCmd := exec.CommandContext(context.Background(), binary, "seed", "--dest", dest, "--image", goodImage)
+	seedCmd := exec.CommandContext(context.Background(), binary, "seed", "--dest", dest, "--image-ref", goodImage)
 	if output, err := seedCmd.CombinedOutput(); err != nil {
 		t.Fatalf("seed error = %v\n%s", err, output)
 	}
@@ -196,5 +200,62 @@ func TestSeedFromTheBuiltBinary(t *testing.T) {
 	run.Stdin = strings.NewReader("")
 	if err := run.Run(); err == nil {
 		t.Fatal("seeded collector accepted empty stdin")
+	}
+}
+
+func TestManifestForKeepsDollarSignsLiteral(t *testing.T) {
+	t.Parallel()
+
+	ref := "reg.invalid/$1/${0}@sha256:" + strings.Repeat("b", 64)
+	got, err := manifestFor(collector.ManifestYAML, ref)
+	if err != nil {
+		t.Fatalf("manifestFor() error = %v", err)
+	}
+	if !bytes.Contains(got, []byte("image: "+ref+"\n")) {
+		t.Fatalf("the reference was not written literally:\n%s", got)
+	}
+}
+
+func TestSeedImageRefFlagWinsOverEnvironment(t *testing.T) {
+	t.Parallel()
+
+	envRef := "ghcr.io/env/jira@sha256:" + strings.Repeat("e", 64)
+	flagRef := "ghcr.io/flag/jira@sha256:" + strings.Repeat("f", 64)
+	run := func(t *testing.T, args []string, env string) (string, error) {
+		t.Helper()
+		dest := filepath.Join(t.TempDir(), "component")
+		var out bytes.Buffer
+		err := runSeed(append([]string{"--dest", dest}, args...), &out, func(key string) string {
+			if key == imageRefEnv {
+				return env
+			}
+			return ""
+		})
+		if err != nil {
+			return "", err
+		}
+		manifest, readErr := os.ReadFile(filepath.Join(dest, "manifest.yaml"))
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		return string(manifest), nil
+	}
+	if got, err := run(t, nil, envRef); err != nil || !strings.Contains(got, envRef) {
+		t.Fatalf("env only: err=%v, want the environment reference stamped", err)
+	}
+	if got, err := run(t, []string{"--image-ref", flagRef}, envRef); err != nil || !strings.Contains(got, flagRef) || strings.Contains(got, envRef) {
+		t.Fatalf("flag and env: err=%v, want the flag to win", err)
+	}
+	if got, err := run(t, nil, "  "); err != nil || !strings.Contains(got, strings.Repeat("0", 64)) {
+		t.Fatalf("blank env: err=%v, want the repository placeholder unchanged", err)
+	}
+	if _, err := run(t, nil, "not-a-digest-ref"); err == nil {
+		t.Fatal("an invalid environment reference must fail, not be ignored")
+	}
+	if _, err := run(t, []string{"--image-ref", "ghcr.io/x:latest"}, envRef); err == nil {
+		t.Fatal("an invalid flag reference must fail even when the environment is valid")
+	}
+	if _, err := run(t, []string{"--image", flagRef}, ""); err == nil {
+		t.Fatal("the old --image flag must no longer be accepted")
 	}
 }

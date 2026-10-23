@@ -65,12 +65,15 @@ The image holds one static binary that installs itself, so an init container
 needs no shell:
 
 ```bash
-collector seed --dest /component [--image ghcr.io/eshu-hq/eshu-collector-jira@sha256:<digest>]
+collector seed --dest /component [--image-ref ghcr.io/eshu-hq/eshu-collector-jira@sha256:<digest>]
 ```
 
 writes `/component/collector` (mode 0755) and `/component/manifest.yaml`.
-`--image` stamps the deployed digest-pinned reference into the manifest's
-artifact entry, because an image cannot embed its own digest.
+`--image-ref REF` (or the `COLLECTOR_IMAGE_REF` environment variable; the flag
+wins) stamps the deployed digest-pinned reference into the manifest's artifact
+entry, because an image cannot embed its own digest. `REF` must match
+`^[^@\s]+@sha256:[0-9a-f]{64}$` or seed exits non-zero. Without it the
+repository placeholder digest is written unchanged.
 
 ## Producer grants
 
