@@ -90,8 +90,13 @@ func TestManifestReleaseProvenance(t *testing.T) {
 			t.Fatalf("fact kind %q has no source confidence", family.Kind)
 		}
 	}
-	if len(manifest.Spec.ConsumerContracts.Reducer.Phases) == 0 {
-		t.Fatal("manifest missing reducer consumer contract")
+	// consumerContracts.reducer.phases is deliberately omitted. The only phase
+	// the SDK conformance harness accepts for an optional component is
+	// source_evidence_only:no_graph_truth, which would say these facts feed no
+	// graph truth; the nine work_item.* kinds are core-owned and feed real
+	// reducers. Declaring nothing is accurate, and the harness accepts it.
+	if phases := manifest.Spec.ConsumerContracts.Reducer.Phases; len(phases) != 0 {
+		t.Fatalf("manifest declares reducer phases %v; omit consumerContracts (see the comment above)", phases)
 	}
 	if strings.TrimSpace(manifest.Spec.Telemetry.MetricsPrefix) == "" {
 		t.Fatal("manifest missing telemetry metrics prefix")

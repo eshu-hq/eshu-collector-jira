@@ -184,6 +184,12 @@ producer grants, so they reject any manifest that declares core-owned kinds
 makes the other three grant-aware, conformance for this manifest is the Go
 harness above.
 
+The manifest omits `consumerContracts.reducer.phases` on purpose. The only
+phase the SDK harness accepts for an optional component is
+`source_evidence_only:no_graph_truth`, which would be false here: the nine
+`work_item.*` kinds are core-owned and feed real reducers. `manifest_test.go`
+fails if a phase list is added back.
+
 ## Build and test
 
 ```bash

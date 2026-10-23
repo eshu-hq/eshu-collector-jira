@@ -71,10 +71,6 @@ spec:
         - 1.0.0
       sourceConfidence:
         - reported
-  consumerContracts:
-    reducer:
-      phases:
-        - source_evidence_only:no_graph_truth
   telemetry:
     # Declared only: the collector emits no metric under this prefix. See the
     # README section "Operator signals".
