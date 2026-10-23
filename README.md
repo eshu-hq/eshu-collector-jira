@@ -103,7 +103,11 @@ collector seed --dest /component [--image-ref ghcr.io/eshu-hq/eshu-collector-jir
 writes `/component/collector` (mode 0755) and `/component/manifest.yaml`.
 `--image-ref REF` (or the `COLLECTOR_IMAGE_REF` environment variable; the flag
 wins) stamps the deployed digest-pinned reference into the manifest's artifact
-entry, because an image cannot embed its own digest. `REF` must match
+entry, because an image cannot embed its own digest. The repository manifest keeps the all-zero
+placeholder digest permanently (`manifest_test.go` fails on a real one), because
+it is embedded in the binary and a committed digest could only describe an older
+build. `scripts/pin-digest.sh <repo:tag>` only prints the `repo@sha256:...`
+reference of a pushed image; it edits nothing. `REF` must match
 `^[^@\s]+@sha256:[0-9a-f]{64}$` or seed exits non-zero. Without it the
 repository placeholder digest is written unchanged.
 

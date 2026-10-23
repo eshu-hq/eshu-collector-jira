@@ -14,10 +14,31 @@ import (
 
 var digestPattern = regexp.MustCompile(`@sha256:[A-Fa-f0-9]{64}$`)
 
-// placeholderDigestAllowed tolerates the all-zero artifact digest while the
-// repository is pre-release. Set it to false in the change that records the
-// first real image digest.
-const placeholderDigestAllowed = true
+// placeholderDigest is the artifact digest the repository manifest carries
+// permanently. manifest.yaml is go:embed'ed into the binary, so a digest
+// written into it would belong to an older build than the image that embeds
+// it. The deployed digest is stamped at deploy time by `collector seed
+// --image-ref` instead (README, "Image and seeding").
+const placeholderDigest = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+
+// isPlaceholderImage reports whether image names the placeholder digest.
+func isPlaceholderImage(image string) bool {
+	return strings.HasSuffix(image, "@"+placeholderDigest)
+}
+
+// TestPlaceholderImageGate pins the gate on both sides: the placeholder passes
+// and a real-looking digest fails.
+func TestPlaceholderImageGate(t *testing.T) {
+	t.Parallel()
+
+	const repo = "ghcr.io/eshu-hq/eshu-collector-jira@"
+	if !isPlaceholderImage(repo + placeholderDigest) {
+		t.Fatal("the placeholder digest must pass the gate")
+	}
+	if isPlaceholderImage(repo + "sha256:" + strings.Repeat("a", 64)) {
+		t.Fatal("a real-looking digest must fail the gate")
+	}
+}
 
 // TestManifestReleaseProvenance proves releases are reproducible and the
 // component manifest is valid: every artifact is digest-pinned, the manifest
@@ -46,15 +67,13 @@ func TestManifestReleaseProvenance(t *testing.T) {
 		if strings.Contains(artifact.Image, ":latest") {
 			t.Fatalf("artifact image %q uses a mutable tag", artifact.Image)
 		}
-		// The all-zero digest matches the pin format but names no pullable
-		// artifact. This repository is pre-release (eshu-hq/eshu#8858): no
-		// image has been published yet, so the placeholder is tolerated only
-		// while placeholderDigestAllowed is true. The release change that
-		// records the real pushed digest via scripts/pin-digest.sh flips it
-		// to false so the gate stays red on an unpinned manifest.
-		if !placeholderDigestAllowed &&
-			strings.HasSuffix(artifact.Image, "@sha256:"+strings.Repeat("0", 64)) {
-			t.Fatalf("artifact image %q is the unpinned placeholder digest: run scripts/pin-digest.sh", artifact.Image)
+		// The repository manifest names the placeholder, never a real digest:
+		// the manifest is embedded in the image, so a committed digest could
+		// only describe an older build. Deployments stamp the digest they
+		// pulled with `collector seed --image-ref REF@sha256:<digest>`.
+		if !isPlaceholderImage(artifact.Image) {
+			t.Fatalf("artifact image %q is not the placeholder digest: do not commit a real digest "+
+				"(the manifest is embedded in the image); stamp the deployed one with collector seed --image-ref", artifact.Image)
 		}
 	}
 	if len(manifest.Spec.EmittedFacts) == 0 {
