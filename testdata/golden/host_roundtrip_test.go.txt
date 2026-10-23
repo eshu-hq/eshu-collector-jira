@@ -1,0 +1,247 @@
+package extensionhost
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"reflect"
+	"sort"
+	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/jira"
+	"github.com/eshu-hq/eshu/go/internal/component"
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
+)
+
+type zzScenario struct {
+	Name      string            `json:"name"`
+	Env       map[string]string `json:"env"`
+	Config    map[string]any    `json:"config"`
+	Responses map[string]struct {
+		Status  int               `json:"status"`
+		Headers map[string]string `json:"headers"`
+		Body    json.RawMessage   `json:"body"`
+	} `json:"responses"`
+}
+
+func zzKey(r *http.Request, body []byte) string {
+	key := r.Method + " " + r.URL.Path
+	if q := r.URL.Query(); len(q) > 0 {
+		key += "?" + q.Encode()
+	}
+	if r.Method == http.MethodPost {
+		var d struct {
+			NextPageToken string `json:"nextPageToken"`
+		}
+		_ = json.Unmarshal(body, &d)
+		key += "#" + d.NextPageToken
+	}
+	return key
+}
+
+func zzDrain(ch <-chan facts.Envelope) []facts.Envelope {
+	var out []facts.Envelope
+	for e := range ch {
+		out = append(out, e)
+	}
+	return out
+}
+
+func zzNorm(t *testing.T, v any) any {
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out any
+	_ = json.Unmarshal(b, &out)
+	return out
+}
+
+// TestZZHostRoundTrip drives the REAL extension host (ProcessRunner, NewSource,
+// validator, payload-schema check, producer-grant recheck, envelope adapter)
+// against the built extracted collector and a fake Jira over real HTTP, and
+// compares the committed envelopes with the in-tree collector's. Throwaway.
+func TestZZHostRoundTrip(t *testing.T) {
+	bin := os.Getenv("JIRA_COLLECTOR_BIN")
+	scenarioPath := os.Getenv("JIRA_SCENARIO")
+	manifestPath := os.Getenv("JIRA_MANIFEST")
+	if bin == "" || scenarioPath == "" || manifestPath == "" {
+		t.Skip("JIRA_COLLECTOR_BIN / JIRA_SCENARIO / JIRA_MANIFEST not set")
+	}
+	raw, err := os.ReadFile(scenarioPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var s zzScenario
+	if err := json.Unmarshal(raw, &s); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		entry, ok := s.Responses[zzKey(r, body)]
+		if !ok {
+			w.WriteHeader(404)
+			_, _ = w.Write([]byte(`{"errorMessages":["no entry"]}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		for k, v := range entry.Headers {
+			w.Header().Set(k, v)
+		}
+		w.WriteHeader(entry.Status)
+		_, _ = w.Write(entry.Body)
+	}))
+	defer server.Close()
+	config := map[string]any{}
+	for k, v := range s.Config {
+		config[k] = v
+	}
+	config["base_url"] = server.URL
+	for k, v := range s.Env {
+		t.Setenv(k, v)
+	}
+
+	// Grants: nine core kinds, scope = the manifest's collector kind.
+	var grants []component.ProducerGrant
+	for _, kind := range facts.WorkItemFactKinds() {
+		grants = append(grants, component.ProducerGrant{
+			ProducerID: "dev.eshu.collector.jira", Version: "0.1.0", Kind: kind, SchemaVersions: []string{"1.0.0"},
+			Scope: "jira", ExpiresAt: time.Now().Add(time.Hour),
+		})
+	}
+	manifest, err := component.LoadManifestWithGrants(manifestPath, grants)
+	if err != nil {
+		t.Fatalf("LoadManifestWithGrants: %v", err)
+	}
+	host, err := NewSource(Config{
+		Manifest: manifest, CollectorInstanceID: "jira-qa", ScopeKind: scope.KindJiraSite, ConfigHandle: "component-config:jira",
+		Config: config, Grants: grants,
+		Runner: ProcessRunner{Command: bin, Args: []string{"--sdk-stdio"}, StdoutLimitBytes: 64 << 20},
+	})
+	if err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+	now := time.Now().UTC()
+	item := workflow.WorkItem{
+		WorkItemID: "work-1", RunID: "run-1", SourceRunID: "run-1", CollectorKind: scope.CollectorJira, CollectorInstanceID: "jira-qa",
+		SourceSystem: "jira", ScopeID: "jira:site:fixture", TenantID: "tenant-1", WorkspaceID: "workspace-1", SubjectClass: "jira_site",
+		PolicyRevisionHash: "policy-hash", AcceptanceUnitID: "acceptance-unit", GenerationID: "generation-1", FairnessKey: "jira:site:fixture",
+		Status: workflow.WorkItemStatusClaimed, AttemptCount: 1, CurrentClaimID: "claim-1", CurrentFencingToken: 7, CurrentOwnerID: "worker-1",
+		LeaseExpiresAt: now.Add(time.Hour), VisibleAt: now.Add(-time.Minute), LastClaimedAt: now.Add(-time.Second),
+		CreatedAt: now.Add(-10 * time.Minute), UpdatedAt: now.Add(-time.Second),
+	}
+	hostGen, ok, err := host.NextClaimed(context.Background(), item)
+	if len(s.Name) > 8 && s.Name[:8] == "failure_" && !(s.Name == "failure_metadata_forbidden_projects") {
+		var hostFailure interface {
+			FailureClass() string
+			TerminalFailure() bool
+		}
+		if !errors.As(err, &hostFailure) {
+			t.Fatalf("%s: host error %T %v is not a classified failure", s.Name, err, err)
+		}
+		in2, _ := jira.NewClaimedSource(jira.SourceConfig{
+			CollectorInstanceID: "jira-qa",
+			Targets: []jira.TargetConfig{{
+				ScopeID: "jira:site:fixture", SiteID: "x", BaseURL: server.URL, Email: s.Env["JIRA_EMAIL"], Token: s.Env["JIRA_TOKEN"], JQL: "project = ESHU", UpdatedLookback: time.Hour,
+			}},
+		})
+		_, _, inErr := in2.NextClaimed(context.Background(), item)
+		var inFailure interface {
+			FailureClass() string
+			TerminalFailure() bool
+		}
+		if !errors.As(inErr, &inFailure) {
+			t.Fatalf("%s: in-tree error %T is not classified", s.Name, inErr)
+		}
+		if hostFailure.FailureClass() != inFailure.FailureClass() || hostFailure.TerminalFailure() != inFailure.TerminalFailure() {
+			t.Fatalf("%s: host %s/terminal=%v, in-tree %s/terminal=%v", s.Name, hostFailure.FailureClass(), hostFailure.TerminalFailure(), inFailure.FailureClass(), inFailure.TerminalFailure())
+		}
+		t.Logf("%s: host and in-tree agree: class=%s terminal=%v", s.Name, hostFailure.FailureClass(), hostFailure.TerminalFailure())
+		return
+	}
+	if err != nil || !ok {
+		t.Fatalf("host NextClaimed: ok=%v err=%v", ok, err)
+	}
+	hostEnvs := zzDrain(hostGen.Facts)
+
+	// In-tree collector against the same server.
+	str := func(k string) string { v, _ := s.Config[k].(string); return v }
+	num := func(k string) int { v, _ := s.Config[k].(float64); return int(v) }
+	lookback, _ := time.ParseDuration(str("updated_lookback"))
+	source, err := jira.NewClaimedSource(jira.SourceConfig{
+		CollectorInstanceID: "jira-qa",
+		Targets: []jira.TargetConfig{{
+			ScopeID: "jira:site:fixture", SiteID: str("site_id"), BaseURL: server.URL, Email: s.Env[str("email_env")], Token: s.Env[str("token_env")],
+			JQL: str("jql"), IssueLimit: num("issue_limit"), UpdatedLookback: lookback, ChangelogLimit: num("changelog_limit"),
+			RemoteLinkLimit: num("remote_link_limit"), MetadataLimit: num("metadata_limit"),
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inGen, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil || !ok {
+		t.Fatalf("in-tree NextClaimed: ok=%v err=%v", ok, err)
+	}
+	inEnvs := zzDrain(inGen.Facts)
+
+	// Compare scope + generation semantics.
+	if hostGen.Scope.ScopeID != inGen.Scope.ScopeID || hostGen.Scope.ScopeKind != inGen.Scope.ScopeKind ||
+		hostGen.Scope.SourceSystem != inGen.Scope.SourceSystem || hostGen.Scope.CollectorKind != inGen.Scope.CollectorKind {
+		t.Fatalf("scope differs: host %+v in-tree %+v", hostGen.Scope, inGen.Scope)
+	}
+	if hostGen.Generation.GenerationID != inGen.Generation.GenerationID || hostGen.Generation.TrustedDeletion != inGen.Generation.TrustedDeletion {
+		t.Fatalf("generation differs: host %+v in-tree %+v", hostGen.Generation, inGen.Generation)
+	}
+	t.Logf("generation: host status=%s trigger=%s hint=%.12s... in-tree hint=%.12s... (hints differ only through the wall-clock window)",
+		hostGen.Generation.Status, hostGen.Generation.TriggerKind, hostGen.Generation.FreshnessHint, inGen.Generation.FreshnessHint)
+
+	index := func(envs []facts.Envelope) map[string]facts.Envelope {
+		m := map[string]facts.Envelope{}
+		for _, e := range envs {
+			m[e.FactKind+"\x00"+e.StableFactKey] = e // last wins, like the store
+		}
+		return m
+	}
+	hm, im := index(hostEnvs), index(inEnvs)
+	var hk, ik []string
+	for k := range hm {
+		hk = append(hk, k)
+	}
+	for k := range im {
+		ik = append(ik, k)
+	}
+	sort.Strings(hk)
+	sort.Strings(ik)
+	if !reflect.DeepEqual(hk, ik) {
+		t.Fatalf("fact key sets differ: host %d in-tree %d", len(hk), len(ik))
+	}
+	kinds := map[string]int{}
+	for _, k := range hk {
+		h, i := hm[k], im[k]
+		kinds[h.FactKind]++
+		if h.SchemaVersion != i.SchemaVersion || h.SourceConfidence != i.SourceConfidence || h.CollectorKind != i.CollectorKind ||
+			h.ScopeID != i.ScopeID || h.GenerationID != i.GenerationID || h.FencingToken != i.FencingToken || h.IsTombstone != i.IsTombstone {
+			t.Fatalf("%s: envelope metadata differs\n host %+v\n  in %+v", k, h, i)
+		}
+		if !reflect.DeepEqual(zzNorm(t, h.Payload), zzNorm(t, i.Payload)) {
+			t.Fatalf("%s: payload differs", k)
+		}
+		if h.SourceRef != i.SourceRef {
+			t.Fatalf("%s: source ref differs\n host %+v\n  in %+v", k, h.SourceRef, i.SourceRef)
+		}
+		if h.FactID == i.FactID {
+			t.Fatalf("%s: fact ids are equal; the host namespace should make them differ", k)
+		}
+	}
+	t.Logf("host round trip OK: %d unique facts compared, per kind %v; raw host envelopes %d, in-tree %d", len(hk), kinds, len(hostEnvs), len(inEnvs))
+	_ = collector.CollectedGeneration{}
+}

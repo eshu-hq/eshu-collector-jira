@@ -1,0 +1,32 @@
+{
+  "protocol_version": "collector-sdk/v1alpha1",
+  "state": "retryable",
+  "claim": {
+    "component_id": "dev.eshu.collector.jira",
+    "instance_id": "jira-qa",
+    "collector_kind": "jira",
+    "source_system": "jira",
+    "scope": {
+      "id": "jira:site:fixture",
+      "kind": "jira_site"
+    },
+    "source_run_id": "run-1",
+    "generation_id": "generation-1",
+    "work_item_id": "work-1",
+    "fencing_token": "7",
+    "attempt": 1,
+    "deadline": "2026-10-01T13:00:00Z",
+    "config_handle": "component-config:jira"
+  },
+  "generation": {
+    "id": "generation-1",
+    "observed_at": "2026-10-01T12:00:00Z"
+  },
+  "statuses": [
+    {
+      "class": "failure",
+      "failure_class": "rate_limited",
+      "retry_after_seconds": 120
+    }
+  ]
+}

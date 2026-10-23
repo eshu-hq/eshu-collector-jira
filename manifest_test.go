@@ -4,9 +4,12 @@
 package collector
 
 import (
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
 var digestPattern = regexp.MustCompile(`@sha256:[A-Fa-f0-9]{64}$`)
@@ -73,5 +76,39 @@ func TestManifestReleaseProvenance(t *testing.T) {
 	}
 	if strings.TrimSpace(manifest.Spec.Telemetry.MetricsPrefix) == "" {
 		t.Fatal("manifest missing telemetry metrics prefix")
+	}
+}
+
+// TestManifestDeclaresTheNineWorkItemKindsWithPublishedSchemas keeps the
+// manifest, the contract the handler emits against, and the published payload
+// schemas in step: every kind is declared once at schema 1.0.0 with reported
+// confidence and a payloadSchemaRef that resolves in the pinned fixture pack.
+func TestManifestDeclaresTheNineWorkItemKindsWithPublishedSchemas(t *testing.T) {
+	t.Parallel()
+
+	manifest := loadManifest(t)
+	want := FactKinds()
+	var got []string
+	for _, family := range manifest.Spec.EmittedFacts {
+		got = append(got, family.Kind)
+		if strings.Join(family.SchemaVersions, ",") != SchemaVersion || strings.Join(family.SourceConfidence, ",") != "reported" {
+			t.Errorf("%s: schemaVersions=%v sourceConfidence=%v", family.Kind, family.SchemaVersions, family.SourceConfidence)
+		}
+		if family.PayloadSchemaRef != family.Kind {
+			t.Errorf("%s: payloadSchemaRef = %q, want the kind", family.Kind, family.PayloadSchemaRef)
+		}
+		if _, ok := fixturepack.SchemaFor(family.PayloadSchemaRef); !ok {
+			t.Errorf("%s: pinned fixture pack has no schema %q", family.Kind, family.PayloadSchemaRef)
+		}
+	}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("manifest kinds %v, FactKinds() %v", got, want)
+	}
+	if len(manifest.Spec.CollectorKinds) != 1 || manifest.Spec.CollectorKinds[0] != CollectorKind {
+		t.Fatalf("collectorKinds = %v, want [%s]", manifest.Spec.CollectorKinds, CollectorKind)
+	}
+	contract := manifest.Contract()
+	if !reflect.DeepEqual(contract, Contract()) {
+		t.Fatalf("manifest contract differs from Contract():\n%+v\n%+v", contract, Contract())
 	}
 }

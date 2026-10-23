@@ -60,6 +60,32 @@ one; the long lookback keeps that check false so the recorded freshness hints
 match. `TestFixtureClockStaysInsideTheInTreeStaleWindow` fails with a pointer
 here before the window closes.
 
+## Host round trip
+
+`golden/host_roundtrip_test.go.txt` is a second throwaway test for the eshu
+worktree. It starts a fake Jira over real HTTP from one scenario, runs the real
+extension host (`NewSource`, `ProcessRunner`, result validation, payload-schema
+check, producer-grant recheck, envelope adapter) against the built collector
+binary, runs the in-tree collector against the same server, and compares the
+committed envelopes: kind, stable key, schema version, confidence, collector
+kind, scope, generation, fencing token, source ref, and payload. Fact IDs must
+differ. For failure scenarios it compares the host's failure class and
+terminality with the in-tree collector's.
+
+```bash
+(cd "$HERE" && CGO_ENABLED=0 go build -trimpath -o /tmp/jira-collector ./cmd/collector)
+cp "$HERE/testdata/golden/host_roundtrip_test.go.txt" \
+   /tmp/eshu-golden/go/internal/collector/extensionhost/zz_host_roundtrip_test.go
+(cd /tmp/eshu-golden/go && JIRA_COLLECTOR_BIN=/tmp/jira-collector \
+  JIRA_SCENARIO="$HERE/testdata/source/basic.json" JIRA_MANIFEST="$HERE/manifest.yaml" \
+  go test ./internal/collector/extensionhost -run TestZZHostRoundTrip -count=1 -v)
+```
+
+Result at reference `ce050339cf`: all fifteen scenarios pass. The four
+successful runs compare 22, 22, 10, and 19 unique facts; the eleven failure
+scenarios agree on class and terminality. The freshness hints differ here only
+because the real collector reads the wall clock for its window.
+
 ## `cassettes/supply-chain-demo.json`
 
 Copied from eshu `testdata/cassettes/jira/supply-chain-demo.json`. It is a

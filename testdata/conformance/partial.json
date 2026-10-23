@@ -1,0 +1,1092 @@
+{
+  "protocol_version": "collector-sdk/v1alpha1",
+  "state": "partial",
+  "claim": {
+    "component_id": "dev.eshu.collector.jira",
+    "instance_id": "jira-qa",
+    "collector_kind": "jira",
+    "source_system": "jira",
+    "scope": {
+      "id": "jira:site:fixture",
+      "kind": "jira_site"
+    },
+    "source_run_id": "run-1",
+    "generation_id": "generation-1",
+    "work_item_id": "work-1",
+    "fencing_token": "7",
+    "attempt": 1,
+    "deadline": "2026-10-01T13:00:00Z",
+    "config_handle": "component-config:jira"
+  },
+  "generation": {
+    "id": "generation-1",
+    "observed_at": "2026-10-01T12:00:00Z",
+    "freshness_hint": "bb2c9ee3e134b4df057057137eaeb907e1ebf8fa3dd2e7c1a0974044998e8b92"
+  },
+  "facts": [
+    {
+      "kind": "work_item.project_metadata",
+      "schema_version": "1.0.0",
+      "stable_key": "fb6c97be5aae9d014c386bfa41f597aa1a9b0e94b58bf8d31aa6b8b48f93a8b5",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "fb6c97be5aae9d014c386bfa41f597aa1a9b0e94b58bf8d31aa6b8b48f93a8b5",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "10000"
+      },
+      "payload": {
+        "category_id": "10100",
+        "category_name": "",
+        "category_name_fingerprint": "sha256:c78ffe19571018fbc93a78873969046fe1a80c3d21e5d20fbb2ca17c7c53a144",
+        "category_name_present": true,
+        "collector_instance_id": "jira-qa",
+        "issue_count": 42,
+        "last_issue_update_at": "2026-09-30T10:00:00Z",
+        "project_id": "10000",
+        "project_key": "ESHU",
+        "project_name": "",
+        "project_name_fingerprint": "sha256:08d39ca05f34e12566dd6d61d98c41198e5d712ccc4c6ef130d4d3ef1252c1a7",
+        "project_name_present": true,
+        "project_type_key": "software",
+        "provider": "jira_cloud",
+        "redaction_policy_version": "jira_work_item_v1",
+        "self_url": "",
+        "self_url_fingerprint": "sha256:a8e5f2c9f696fe9524e9ec09f5633afb82e91d3963dd90219ba4fb1ac274080e",
+        "style": "next-gen",
+        "visibility_state": "active"
+      },
+      "redactions": [
+        {
+          "field": "category_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "project_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "self_url",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.project_metadata",
+      "schema_version": "1.0.0",
+      "stable_key": "c63cb62cd19cc15ce7cc00cd9fce59e453e943e32e0fdeb477dfd132c4668269",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "c63cb62cd19cc15ce7cc00cd9fce59e453e943e32e0fdeb477dfd132c4668269",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "10001"
+      },
+      "payload": {
+        "category_id": "",
+        "category_name": "",
+        "category_name_fingerprint": "",
+        "category_name_present": false,
+        "collector_instance_id": "jira-qa",
+        "issue_count": 0,
+        "last_issue_update_at": "",
+        "project_id": "10001",
+        "project_key": "OLD",
+        "project_name": "",
+        "project_name_fingerprint": "sha256:a9f71bc2404c91936d123fb820e9e9b75a47d292eed38e776df0dcf7a07b6ef2",
+        "project_name_present": true,
+        "project_type_key": "business",
+        "provider": "jira_cloud",
+        "redaction_policy_version": "jira_work_item_v1",
+        "self_url": "",
+        "self_url_fingerprint": "sha256:e14cadce940904b051cf15cba30f6b3567561ed5fe27811946957ffeebbea9bf",
+        "style": "classic",
+        "visibility_state": "archived"
+      },
+      "redactions": [
+        {
+          "field": "project_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "self_url",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.issue_type_metadata",
+      "schema_version": "1.0.0",
+      "stable_key": "2a36e9cc5d55ef5c3b82e8476532ff190d21970e2dde27507a1780205131b483",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "2a36e9cc5d55ef5c3b82e8476532ff190d21970e2dde27507a1780205131b483",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "10002"
+      },
+      "payload": {
+        "collector_instance_id": "jira-qa",
+        "description_fingerprint": "sha256:9bf3781c7ba30c71e58d52fdcc83e68ab9b64251a62746a068fcded2d9886e86",
+        "description_present": true,
+        "entity_id": "",
+        "entity_id_fingerprint": "sha256:1d3831142120e3a53237a5edee285bad9c29437798d358504465187150190d75",
+        "entity_id_present": true,
+        "hierarchy_level": 0,
+        "issue_type_id": "10002",
+        "issue_type_name": "",
+        "issue_type_name_fingerprint": "sha256:4bc74b21357c6cf5cca8f66b4d4ee948be64d0396feb434c9645e168ad61ceaf",
+        "issue_type_name_present": true,
+        "project_id": "10000",
+        "provider": "jira_cloud",
+        "redaction_policy_version": "jira_work_item_v1",
+        "scope_type": "PROJECT",
+        "self_url": "",
+        "self_url_fingerprint": "sha256:ae935a565de0ceceb95d7701a6af33c72f2032accf348a2c82dc34b7314f2a58",
+        "subtask": false
+      },
+      "redactions": [
+        {
+          "field": "entity_id",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "issue_type_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "self_url",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.issue_type_metadata",
+      "schema_version": "1.0.0",
+      "stable_key": "b8f0849b1574de06ecda2cf54e3614a1caa7e205ae4890fdd59a854a20d3d8b9",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "b8f0849b1574de06ecda2cf54e3614a1caa7e205ae4890fdd59a854a20d3d8b9",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "10003"
+      },
+      "payload": {
+        "collector_instance_id": "jira-qa",
+        "description_fingerprint": "",
+        "description_present": false,
+        "entity_id": "",
+        "entity_id_fingerprint": "",
+        "entity_id_present": false,
+        "hierarchy_level": -1,
+        "issue_type_id": "10003",
+        "issue_type_name": "",
+        "issue_type_name_fingerprint": "sha256:17aa97a09b7fbc276b111c0f037e6307013f3cbe4ba7114265c4e9c5c52c7cbe",
+        "issue_type_name_present": true,
+        "project_id": "10000",
+        "provider": "jira_cloud",
+        "redaction_policy_version": "jira_work_item_v1",
+        "scope_type": "",
+        "self_url": "",
+        "self_url_fingerprint": "sha256:0704c6c4245c36f5b6f421eeef3080ddb2de80e80ee491bdb587fca3219b279f",
+        "subtask": true
+      },
+      "redactions": [
+        {
+          "field": "issue_type_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "self_url",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.field_metadata",
+      "schema_version": "1.0.0",
+      "stable_key": "ca21f5d36a1d6ba8d2779fed8304291f5dd4f5d448aae0cde1e94922337a477c",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "ca21f5d36a1d6ba8d2779fed8304291f5dd4f5d448aae0cde1e94922337a477c",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "sha256:761b7ad8ad439b2855fcbb611331c646ef0870b0631247bba3f3025cb6df5a53"
+      },
+      "payload": {
+        "collector_instance_id": "jira-qa",
+        "custom_id_present": false,
+        "description_fingerprint": "",
+        "description_present": false,
+        "field_id": "",
+        "field_id_fingerprint": "sha256:761b7ad8ad439b2855fcbb611331c646ef0870b0631247bba3f3025cb6df5a53",
+        "field_id_present": true,
+        "field_name": "",
+        "field_name_fingerprint": "sha256:8e76a94ac8320d515375e625bef1829238b097ecbd33611b59eeefd4ffefebfb",
+        "field_name_present": true,
+        "provider": "jira_cloud",
+        "redaction_policy_version": "jira_work_item_v1",
+        "schema_custom": "",
+        "schema_items": "",
+        "schema_system": "summary",
+        "schema_type": "string",
+        "self_url": "",
+        "self_url_fingerprint": "sha256:387b245522234897f0f1ceb767f004a1ee500cb0d580551ce9f9bdc1f6539f34"
+      },
+      "redactions": [
+        {
+          "field": "field_id",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "field_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "self_url",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.field_metadata",
+      "schema_version": "1.0.0",
+      "stable_key": "08e4ffa0683cb50e14045d188804a96932f0e2b961f9aec49f4001cf4f2dbe36",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "08e4ffa0683cb50e14045d188804a96932f0e2b961f9aec49f4001cf4f2dbe36",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "sha256:fc233e03ebdfe6f5efacfc3f6a4ea28aac06d557fa1cc2dbe8e50533ad56974b"
+      },
+      "payload": {
+        "collector_instance_id": "jira-qa",
+        "custom_id_present": true,
+        "description_fingerprint": "sha256:79e1d925e79c904a9cf8ef433d2eb255d5e3f1a881e45d7e3ea1121a86da1749",
+        "description_present": true,
+        "field_id": "",
+        "field_id_fingerprint": "sha256:fc233e03ebdfe6f5efacfc3f6a4ea28aac06d557fa1cc2dbe8e50533ad56974b",
+        "field_id_present": true,
+        "field_name": "",
+        "field_name_fingerprint": "sha256:3d514a535707c48bf62caa6cdbc0e486554f70042332b3c4e6607142b22b3930",
+        "field_name_present": true,
+        "provider": "jira_cloud",
+        "redaction_policy_version": "jira_work_item_v1",
+        "schema_custom": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+        "schema_items": "",
+        "schema_system": "",
+        "schema_type": "number",
+        "self_url": "",
+        "self_url_fingerprint": ""
+      },
+      "redactions": [
+        {
+          "field": "field_id",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "field_name",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.metadata_warning",
+      "schema_version": "1.0.0",
+      "stable_key": "a7ff18ef82b3227cb9154802171ded99a8e1519ad9d39427f4c11ca9b014d8c5",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "a7ff18ef82b3227cb9154802171ded99a8e1519ad9d39427f4c11ca9b014d8c5",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "a7ff18ef82b3227cb9154802171ded99a8e1519ad9d39427f4c11ca9b014d8c5"
+      },
+      "payload": {
+        "collector_instance_id": "jira-qa",
+        "failure_class": "permission_hidden",
+        "metadata_type": "issue_type",
+        "provider": "jira_cloud",
+        "provider_id": "",
+        "provider_id_fingerprint": "sha256:e443169117a184f91186b401133b20be670c7c0896f9886075e5d9b81e9d076b",
+        "provider_id_present": true,
+        "reason": "permission_hidden",
+        "redaction_policy_version": "jira_work_item_v1"
+      },
+      "redactions": [
+        {
+          "field": "provider_id",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.metadata_warning",
+      "schema_version": "1.0.0",
+      "stable_key": "d64bdbc6b4e7a17bc32dec6c5709c0edc3ae635506201c3de0279c54db6637cd",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "d64bdbc6b4e7a17bc32dec6c5709c0edc3ae635506201c3de0279c54db6637cd",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "d64bdbc6b4e7a17bc32dec6c5709c0edc3ae635506201c3de0279c54db6637cd"
+      },
+      "payload": {
+        "collector_instance_id": "jira-qa",
+        "failure_class": "archived",
+        "metadata_type": "status",
+        "provider": "jira_cloud",
+        "provider_id": "",
+        "provider_id_fingerprint": "",
+        "provider_id_present": false,
+        "reason": "archived",
+        "redaction_policy_version": "jira_work_item_v1"
+      }
+    },
+    {
+      "kind": "work_item.metadata_warning",
+      "schema_version": "1.0.0",
+      "stable_key": "4f9a6cd80ac85628dbd83840ca2c1415c24dc155047dcf9505095628526b1d35",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "4f9a6cd80ac85628dbd83840ca2c1415c24dc155047dcf9505095628526b1d35",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "4f9a6cd80ac85628dbd83840ca2c1415c24dc155047dcf9505095628526b1d35"
+      },
+      "payload": {
+        "collector_instance_id": "jira-qa",
+        "failure_class": "deleted",
+        "metadata_type": "workflow",
+        "provider": "jira_cloud",
+        "provider_id": "",
+        "provider_id_fingerprint": "",
+        "provider_id_present": false,
+        "reason": "unsupported",
+        "redaction_policy_version": "jira_work_item_v1"
+      }
+    },
+    {
+      "kind": "work_item.record",
+      "schema_version": "1.0.0",
+      "stable_key": "7152c3c2628f29b1102259d69cefa9b8cb8c220e5e0aa3d32c16974b689ea2d9",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "7152c3c2628f29b1102259d69cefa9b8cb8c220e5e0aa3d32c16974b689ea2d9",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "10001"
+      },
+      "payload": {
+        "assignee_account_id": "",
+        "assignee_display_name": "",
+        "assignee_present": true,
+        "collector_instance_id": "jira-qa",
+        "created_at": "2026-09-01T10:00:00Z",
+        "issue_type_id": "10002",
+        "issue_type_name": "Task",
+        "project_id": "10000",
+        "project_key": "ESHU",
+        "project_name": "",
+        "project_name_present": true,
+        "provider": "jira_cloud",
+        "provider_work_item_id": "10001",
+        "redaction_policy_version": "jira_work_item_v1",
+        "reporter_account_id": "",
+        "reporter_display_name": "",
+        "reporter_present": true,
+        "resolved_at": "",
+        "self_url": "",
+        "self_url_fingerprint": "sha256:800af8193130a562edd679def7de52d9176a5b4b988c352e9dc91879eb28e4c8",
+        "source_url": "",
+        "source_url_fingerprint": "sha256:40db13e7f925c6ebaa3b0d7f345ae82cc17347f0ad095408f289adc7ad82f688",
+        "status_id": "3",
+        "status_name": "In Progress",
+        "summary": "",
+        "summary_present": true,
+        "updated_at": "2026-09-30T11:30:00Z",
+        "work_item_key": "ESHU-1"
+      },
+      "redactions": [
+        {
+          "field": "assignee_account_id",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "assignee_display_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "project_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "reporter_account_id",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "reporter_display_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "self_url",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "source_url",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "summary",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.transition",
+      "schema_version": "1.0.0",
+      "stable_key": "12c9cc32411208cf676f0006645cd6745d83044841b54d6bad769c2a4aadac19",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "12c9cc32411208cf676f0006645cd6745d83044841b54d6bad769c2a4aadac19",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "5001"
+      },
+      "payload": {
+        "author_account_id": "",
+        "author_display_name": "",
+        "author_present": true,
+        "author_redacted": true,
+        "collector_instance_id": "jira-qa",
+        "created_at": "2026-09-20T09:00:00Z",
+        "field": "status",
+        "from": "To Do",
+        "provider": "jira_cloud",
+        "provider_changelog_id": "5001",
+        "provider_work_item_id": "10001",
+        "redaction_policy_version": "jira_work_item_v1",
+        "to": "In Progress",
+        "value_redacted": false,
+        "work_item_key": "ESHU-1"
+      },
+      "redactions": [
+        {
+          "field": "author_account_id",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "author_display_name",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.transition",
+      "schema_version": "1.0.0",
+      "stable_key": "337518e7552424566671b206e56daf414717539b4b7fad9c8f7d90d6bdf70111",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "337518e7552424566671b206e56daf414717539b4b7fad9c8f7d90d6bdf70111",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "5001"
+      },
+      "payload": {
+        "author_account_id": "",
+        "author_display_name": "",
+        "author_present": true,
+        "author_redacted": true,
+        "collector_instance_id": "jira-qa",
+        "created_at": "2026-09-20T09:00:00Z",
+        "field": "assignee",
+        "from": "",
+        "provider": "jira_cloud",
+        "provider_changelog_id": "5001",
+        "provider_work_item_id": "10001",
+        "redaction_policy_version": "jira_work_item_v1",
+        "to": "",
+        "value_redacted": true,
+        "work_item_key": "ESHU-1"
+      },
+      "redactions": [
+        {
+          "field": "author_account_id",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "author_display_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "from",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "to",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.transition",
+      "schema_version": "1.0.0",
+      "stable_key": "835759f04498508860ae77a39870a5987601c9c1a90de96ad4dd46678794517d",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "835759f04498508860ae77a39870a5987601c9c1a90de96ad4dd46678794517d",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "5001"
+      },
+      "payload": {
+        "author_account_id": "",
+        "author_display_name": "",
+        "author_present": true,
+        "author_redacted": true,
+        "collector_instance_id": "jira-qa",
+        "created_at": "2026-09-20T09:00:00Z",
+        "field": "Story Points",
+        "from": "",
+        "provider": "jira_cloud",
+        "provider_changelog_id": "5001",
+        "provider_work_item_id": "10001",
+        "redaction_policy_version": "jira_work_item_v1",
+        "to": "",
+        "value_redacted": true,
+        "work_item_key": "ESHU-1"
+      },
+      "redactions": [
+        {
+          "field": "author_account_id",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "author_display_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "from",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "to",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.transition",
+      "schema_version": "1.0.0",
+      "stable_key": "ddf558f6b98aecc0ea29577ecca6010429059481a3f12f8048faf4f71a6c1662",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "ddf558f6b98aecc0ea29577ecca6010429059481a3f12f8048faf4f71a6c1662",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "5002"
+      },
+      "payload": {
+        "author_account_id": "",
+        "author_display_name": "",
+        "author_present": true,
+        "author_redacted": true,
+        "collector_instance_id": "jira-qa",
+        "created_at": "2026-09-21T09:00:00Z",
+        "field": "labels",
+        "from": "b",
+        "provider": "jira_cloud",
+        "provider_changelog_id": "5002",
+        "provider_work_item_id": "10001",
+        "redaction_policy_version": "jira_work_item_v1",
+        "to": "c",
+        "value_redacted": false,
+        "work_item_key": "ESHU-1"
+      },
+      "redactions": [
+        {
+          "field": "author_account_id",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "author_display_name",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.transition",
+      "schema_version": "1.0.0",
+      "stable_key": "520d0aa7ea287373256310cb3d4656343ff485e718e632787e32070ee142364c",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "520d0aa7ea287373256310cb3d4656343ff485e718e632787e32070ee142364c",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "5003"
+      },
+      "payload": {
+        "author_account_id": "",
+        "author_display_name": "",
+        "author_present": false,
+        "author_redacted": false,
+        "collector_instance_id": "jira-qa",
+        "created_at": "2026-09-22T09:00:00Z",
+        "field": "resolution",
+        "from": "9",
+        "provider": "jira_cloud",
+        "provider_changelog_id": "5003",
+        "provider_work_item_id": "10001",
+        "redaction_policy_version": "jira_work_item_v1",
+        "to": "10",
+        "value_redacted": false,
+        "work_item_key": "ESHU-1"
+      }
+    },
+    {
+      "kind": "work_item.external_link",
+      "schema_version": "1.0.0",
+      "stable_key": "923eebba5f136f5aab41f9dae63eba440b4bed120c3c0b36847c7557acc8286a",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "923eebba5f136f5aab41f9dae63eba440b4bed120c3c0b36847c7557acc8286a",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "7001"
+      },
+      "payload": {
+        "application_name": "GitHub",
+        "application_type": "com.github",
+        "collector_instance_id": "jira-qa",
+        "correlation_anchor_class": "github_pull_request",
+        "global_id": "gh-1",
+        "linked_repository_id": "repository:r_008329d6",
+        "provider": "jira_cloud",
+        "provider_remote_link_id": "7001",
+        "provider_support_state": "supported_provider",
+        "provider_work_item_id": "10001",
+        "redaction_policy_version": "jira_work_item_v1",
+        "relationship": "mentioned in",
+        "summary": "",
+        "summary_present": true,
+        "title": "",
+        "title_present": true,
+        "url": "",
+        "url_fingerprint": "sha256:33b4b4330605a873ee4953566adcabad08f50462693cda7a5362154c8680508d",
+        "url_present": true,
+        "url_redacted": true,
+        "work_item_key": "ESHU-1"
+      },
+      "redactions": [
+        {
+          "field": "summary",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "title",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "url",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.external_link",
+      "schema_version": "1.0.0",
+      "stable_key": "decf9d50e8ac943565b20facb1743c025b0a71516b9d03f4e05b00b0cd823c1f",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "decf9d50e8ac943565b20facb1743c025b0a71516b9d03f4e05b00b0cd823c1f",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "7002"
+      },
+      "payload": {
+        "application_name": "Confluence",
+        "application_type": "com.atlassian.confluence",
+        "collector_instance_id": "jira-qa",
+        "correlation_anchor_class": "remote_link",
+        "global_id": "",
+        "provider": "jira_cloud",
+        "provider_remote_link_id": "7002",
+        "provider_support_state": "unsupported_provider",
+        "provider_work_item_id": "10001",
+        "redaction_policy_version": "jira_work_item_v1",
+        "relationship": "",
+        "summary": "",
+        "summary_present": false,
+        "title": "",
+        "title_present": true,
+        "url": "",
+        "url_fingerprint": "sha256:ba805da0497001c32c48717f59bd4d517f2975ba6a8bc4d7f32bf48d638489f2",
+        "url_present": true,
+        "url_redacted": true,
+        "work_item_key": "ESHU-1"
+      },
+      "redactions": [
+        {
+          "field": "title",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "url",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.external_link",
+      "schema_version": "1.0.0",
+      "stable_key": "87090fcd33be7d63e2aca823de3a55c8aa7f3e160414461a4b2c483db39741e2",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "87090fcd33be7d63e2aca823de3a55c8aa7f3e160414461a4b2c483db39741e2",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "7003"
+      },
+      "payload": {
+        "application_name": "GitLab",
+        "application_type": "gitlab",
+        "collector_instance_id": "jira-qa",
+        "correlation_anchor_class": "gitlab_merge_request",
+        "global_id": "",
+        "linked_repository_id": "repository:r_0839eb27",
+        "provider": "jira_cloud",
+        "provider_remote_link_id": "7003",
+        "provider_support_state": "supported_provider",
+        "provider_work_item_id": "10001",
+        "redaction_policy_version": "jira_work_item_v1",
+        "relationship": "implements",
+        "summary": "",
+        "summary_present": false,
+        "title": "",
+        "title_present": true,
+        "url": "",
+        "url_fingerprint": "sha256:f97fe60eddbac765ad232bc0ad0bd582ad6b3de77c5fb38cddfe39847a660cfc",
+        "url_present": true,
+        "url_redacted": true,
+        "work_item_key": "ESHU-1"
+      },
+      "redactions": [
+        {
+          "field": "title",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "url",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.external_link",
+      "schema_version": "1.0.0",
+      "stable_key": "502c82c9d8d2128fdd283b4e3985e7fe97768f8cb1e52829669d5846db67ebee",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "502c82c9d8d2128fdd283b4e3985e7fe97768f8cb1e52829669d5846db67ebee",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "str-id"
+      },
+      "payload": {
+        "application_name": "",
+        "application_type": "",
+        "collector_instance_id": "jira-qa",
+        "correlation_anchor_class": "remote_link",
+        "global_id": "",
+        "provider": "jira_cloud",
+        "provider_remote_link_id": "str-id",
+        "provider_support_state": "unsupported_provider",
+        "provider_work_item_id": "10001",
+        "redaction_policy_version": "jira_work_item_v1",
+        "relationship": "",
+        "summary": "",
+        "summary_present": false,
+        "title": "",
+        "title_present": false,
+        "url": "",
+        "url_fingerprint": "sha256:6fe79e89d1aa69f37162896700c6f836d78cd132b363082b89a39b639e0ca050",
+        "url_present": true,
+        "url_redacted": true,
+        "work_item_key": "ESHU-1"
+      },
+      "redactions": [
+        {
+          "field": "url",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.record",
+      "schema_version": "1.0.0",
+      "stable_key": "c43ecca2e9ec9f069b4967ce703889bcaa45a28571469a99df777d1cb83b4e09",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "c43ecca2e9ec9f069b4967ce703889bcaa45a28571469a99df777d1cb83b4e09",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "10002"
+      },
+      "payload": {
+        "assignee_account_id": "",
+        "assignee_display_name": "",
+        "assignee_present": true,
+        "collector_instance_id": "jira-qa",
+        "created_at": "2026-09-01T10:00:00Z",
+        "issue_type_id": "10002",
+        "issue_type_name": "Task",
+        "project_id": "10000",
+        "project_key": "ESHU",
+        "project_name": "",
+        "project_name_present": true,
+        "provider": "jira_cloud",
+        "provider_work_item_id": "10002",
+        "redaction_policy_version": "jira_work_item_v1",
+        "reporter_account_id": "",
+        "reporter_display_name": "",
+        "reporter_present": true,
+        "resolved_at": "2026-09-30T12:00:00Z",
+        "self_url": "",
+        "self_url_fingerprint": "sha256:662c09bd1bb232878e47be3b4a900023a9870cafc6993af418fcae7d5f86013a",
+        "source_url": "",
+        "source_url_fingerprint": "sha256:5e5847323fac5eb1daa074502321f802eab8ba7d5fe2545a7142638cd5a661e8",
+        "status_id": "10001",
+        "status_name": "Done",
+        "summary": "",
+        "summary_present": true,
+        "updated_at": "2026-09-30T11:30:00Z",
+        "work_item_key": "ESHU-2"
+      },
+      "redactions": [
+        {
+          "field": "assignee_account_id",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "assignee_display_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "project_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "reporter_account_id",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "reporter_display_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "self_url",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "source_url",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "summary",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.record",
+      "schema_version": "1.0.0",
+      "stable_key": "e83d8f257352b5d0e76e0cb6cb4266c0ec9dbdf30ffba0d65a7653f8de844d07",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "e83d8f257352b5d0e76e0cb6cb4266c0ec9dbdf30ffba0d65a7653f8de844d07",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "10003"
+      },
+      "payload": {
+        "assignee_account_id": "",
+        "assignee_display_name": "",
+        "assignee_present": true,
+        "collector_instance_id": "jira-qa",
+        "created_at": "2026-09-01T10:00:00Z",
+        "issue_type_id": "10002",
+        "issue_type_name": "Task",
+        "project_id": "10000",
+        "project_key": "ESHU",
+        "project_name": "",
+        "project_name_present": true,
+        "provider": "jira_cloud",
+        "provider_work_item_id": "10003",
+        "redaction_policy_version": "jira_work_item_v1",
+        "reporter_account_id": "",
+        "reporter_display_name": "",
+        "reporter_present": true,
+        "resolved_at": "",
+        "self_url": "",
+        "self_url_fingerprint": "sha256:ed078b789828180fa445b441b373a075cb091d12bd4e838cd2196d3ca4be48fa",
+        "source_url": "",
+        "source_url_fingerprint": "sha256:aa762ec81931f0ebe7e8812d7c98b0201381d2c1548aed923f34c579edb3a9f2",
+        "status_id": "3",
+        "status_name": "To Do",
+        "summary": "",
+        "summary_present": true,
+        "updated_at": "2026-09-30T11:30:00Z",
+        "work_item_key": "ESHU-3"
+      },
+      "redactions": [
+        {
+          "field": "assignee_account_id",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "assignee_display_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "project_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "reporter_account_id",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "reporter_display_name",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "self_url",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "source_url",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "summary",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    },
+    {
+      "kind": "work_item.transition",
+      "schema_version": "1.0.0",
+      "stable_key": "c645909b033d9710e867ba072001d6f2f28504902f4571fce8ad0a22a017e41b",
+      "source_confidence": "reported",
+      "observed_at": "2026-10-01T12:00:00Z",
+      "source_ref": {
+        "source_system": "jira",
+        "scope_id": "jira:site:fixture",
+        "generation_id": "generation-1",
+        "fact_key": "c645909b033d9710e867ba072001d6f2f28504902f4571fce8ad0a22a017e41b",
+        "uri": "http://jira.fixture.invalid",
+        "record_id": "5101"
+      },
+      "payload": {
+        "author_account_id": "",
+        "author_display_name": "",
+        "author_present": true,
+        "author_redacted": true,
+        "collector_instance_id": "jira-qa",
+        "created_at": "2026-09-25T09:00:00Z",
+        "field": "summary",
+        "from": "Old title",
+        "provider": "jira_cloud",
+        "provider_changelog_id": "5101",
+        "provider_work_item_id": "10003",
+        "redaction_policy_version": "jira_work_item_v1",
+        "to": "Third",
+        "value_redacted": false,
+        "work_item_key": "ESHU-3"
+      },
+      "redactions": [
+        {
+          "field": "author_account_id",
+          "reason": "jira_work_item_v1"
+        },
+        {
+          "field": "author_display_name",
+          "reason": "jira_work_item_v1"
+        }
+      ]
+    }
+  ],
+  "statuses": [
+    {
+      "class": "complete",
+      "fact_count": 22
+    },
+    {
+      "class": "warning",
+      "partial": true,
+      "warning_count": 3
+    }
+  ]
+}

@@ -65,6 +65,31 @@ writes `/component/collector` (mode 0755) and `/component/manifest.yaml`.
 `--image` stamps the deployed digest-pinned reference into the manifest's
 artifact entry, because an image cannot embed its own digest.
 
+## Producer grants
+
+All nine kinds are core-owned, so the host refuses them without a live producer
+grant. `grant.example.json` lists the nine requests. Each grant is bound to this
+component id and version and scoped to the manifest's collector kind (`jira`),
+not to a site: core matches a grant's scope against the collector kinds the
+manifest declares. `scripts/record-grants.sh` records them with
+`eshu component grant` in a component home. Core issues grants; this
+repository only ships the request.
+
+## Conformance
+
+`conformance_test.go` runs the public SDK harness over the checked-in results in
+`testdata/conformance` (complete, partial, retryable, terminal) with the
+published payload schemas the manifest references. `go test
+-update-conformance-fixtures -run TestConformanceFixturesAreCurrent .`
+rewrites them after a deliberate output change.
+
+`eshu component inspect`, `verify`, and `conform` load the manifest without
+producer grants, so they reject any manifest that declares core-owned kinds
+(`fact kind "work_item.record" is core-owned by Eshu ...`). `install` and
+`enable` are grant-aware and pass once the nine grants are recorded. Until core
+makes the other three grant-aware, conformance for this manifest is the Go
+harness above.
+
 ## Build and test
 
 ```bash
