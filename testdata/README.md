@@ -121,14 +121,18 @@ freshness hint. These differ by design or are not comparable:
    config rejection reason, the HTTP status, and the collection counters go to
    one JSON line on stderr. The SDK status has no field for them, and the
    host's process runner keeps stderr only as a byte count, so an operator does
-   not see that line. The in-tree fetch span and counters have no equivalent,
-   and the manifest's `metricsPrefix` is declared but nothing emits it. See the
-   README section "Operator signals" and eshu-hq/eshu#8908.
+   not see that line. The worker also sets no status recorder, so only the
+   failure class reaches the work item: source latency, fact count, and
+   `retry_after_seconds` are dropped until eshu-hq/eshu#8908 lands. The in-tree
+   fetch span and counters have no equivalent, and the manifest's
+   `metricsPrefix` is declared but nothing emits it. See the README section
+   "Operator signals".
 9. **Claim deadline.** The in-tree worker owned its lease; here the host
    kills the process at the initial lease expiry. The handler stops starting
    provider calls at the deadline minus min(2s, 5% of the time left) and ends
    `retryable` with `claim_deadline_exceeded` and no facts (never `partial`).
-10. **Retry guidance.** A retryable result must carry `retry_after_seconds`; a
+10. **Retry guidance.** A retryable result must carry `retry_after_seconds`
+   (the worker does not honor it yet, eshu-hq/eshu#8908); a
    missing provider `Retry-After` becomes 60 s for rate limits and 30 s
    otherwise, and provider values are capped at 24 h.
 11. **Changelog page cap.** The changelog walk for one issue stops after 100

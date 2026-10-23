@@ -67,14 +67,16 @@ than letting the host drop an oversized result.
 The host sets a claim's deadline to the **initial lease expiry** and kills the
 process there. Heartbeats do not extend it. The worker's default lease TTL is
 60 seconds (`ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL`), so one claim has at
-most that long to read the site unless the worker is configured for more. The
-reference deployment runs the worker lease TTL at 5 minutes (heartbeat 30
-seconds); a site with a large issue window needs at least that.
+most that long to read the site unless the worker is configured for more. For a
+site with a large issue window, raise the worker lease TTL (for example to
+`5m`) and keep the heartbeat well inside it.
 
 The collector stops starting provider calls at the deadline minus
 `min(2s, 5% of the time left)` (a 60 s lease gives 58 s, a 10 s lease 9.5 s, a
 1 s lease 950 ms), cancels the call in flight, and returns a `retryable` result
-with failure class `claim_deadline_exceeded` and `retry_after_seconds`. The
+with failure class `claim_deadline_exceeded`. The result sets
+`retry_after_seconds`, but the worker does not honor it yet (see "Operator
+signals"), so the collector's retry guidance has no effect. The
 result carries no facts: a deadline stop is never `partial`, and facts read so
 far are dropped so an incomplete read cannot commit as a complete generation.
 The next attempt starts over, so a site that cannot finish inside the lease
@@ -84,32 +86,31 @@ deadline already passed fails at once without calling Jira.
 
 ## Operator signals
 
-What an operator can see for a claim today:
+Today the extension host passes one thing from a claim's result to the work
+item: the **failure class** (`rate_limited`, `invalid_config`,
+`unsupported_option`, `claim_deadline_exceeded`, ...). The worker does not set
+a status recorder, so everything else in the result's status row is dropped:
 
-- **SDK status rows.** Every result carries a bounded status: its class
-  (`complete`, `warning`, or a failure class such as `rate_limited`,
-  `invalid_config`, `unsupported_option`, `claim_deadline_exceeded`), the
-  source latency, and for a retryable failure `retry_after_seconds`.
-- **Host metrics.** The extension host's own claim metrics, which eshu-hq/eshu#8908
-  tracks.
-
-What an operator does **not** see:
-
-- **The stderr log line.** The collector writes one JSON line per claim to
-  stderr: the config rejection reason, the failed operation (`search_issues`,
-  `read_changelog`, ...), the HTTP status, and collection counters. The host's
-  process runner keeps stderr only as a byte count and drops the text, so none
-  of that reaches a dashboard or a status row. The line is for a local run
+- **Dropped: source latency and fact count.** The collector fills them in, but
+  no dashboard or work item shows them.
+- **Dropped: `retry_after_seconds`.** The collector sends it on every retryable
+  result, but the worker does not honor it yet, so a retryable result gets no
+  retry delay from the collector's guidance.
+- **Dropped: the stderr log line.** The collector writes one JSON line per
+  claim to stderr: the config rejection reason, the failed operation
+  (`search_issues`, `read_changelog`, ...), the HTTP status, and collection
+  counters. The host's process runner keeps stderr only as a byte count and
+  drops the text. The line is for a local run
   (`collector --sdk-stdio < request.json`) and for tests.
-- **Spans and metrics.** The in-tree collector emitted a fetch span and fetch
+- **No spans or metrics.** The in-tree collector emitted a fetch span and fetch
   counters. This collector has no equivalent. The manifest declares
   `telemetry.metricsPrefix: eshu_dp_jira_collector_`, but nothing in this
   repository emits a metric under it.
 
-Until the host forwards stderr or collector metrics (eshu-hq/eshu#8908), a
-rejected config shows up only as the failure class on the status row; find the
-cause by running the collector with the activation's config and a recorded
-request.
+eshu-hq/eshu#8908 tracks recording status rows and honoring the retry delay in
+the worker. Until it lands, a rejected config shows up only as the failure
+class on the work item; find the cause by running the collector with the
+activation's config and a recorded request.
 
 ## Image and seeding
 

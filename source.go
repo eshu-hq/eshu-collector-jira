@@ -261,9 +261,10 @@ func checkBudgets(facts []sdk.Fact, limits ResourceUse) string {
 }
 
 // logLine is the bounded diagnostic record written to stderr. The host drops
-// it (see Handler.Log), so the SDK status rows are the only per-claim signal
-// an operator has today. Every field is a counter or a fixed-vocabulary token;
-// none carries a URL, a provider body, or a secret.
+// it (see Handler.Log), and the worker records only the failure class from the
+// status row until eshu-hq/eshu#8908 lands, so today it reaches a local run
+// and a test, not an operator. Every field is a counter or a fixed-vocabulary
+// token; none carries a URL, a provider body, or a secret.
 type logLine struct {
 	Event        string          `json:"event"`
 	Outcome      string          `json:"outcome"`
