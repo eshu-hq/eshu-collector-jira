@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -15,7 +16,9 @@ import (
 const defaultUpdatedLookback = 24 * time.Hour
 
 // ConfigError reports an invalid activation config. Its text names config keys
-// and environment variable names only; it never carries a resolved secret.
+// only. It never carries a resolved secret, and it never quotes a configured
+// value (an environment variable name included), because a credential pasted
+// into a *_env key would otherwise reach the operator log.
 type ConfigError struct {
 	msg   string
 	class string
@@ -154,7 +157,8 @@ func buildTarget(cfg activationConfig, claimScopeID string, getenv func(string) 
 		provider = ProviderJiraCloud
 	}
 	if provider != ProviderJiraCloud {
-		return TargetConfig{}, configErrorf("unsupported jira provider %q", provider)
+		// The provider text is operator input; it is never echoed.
+		return TargetConfig{}, configErrorf("unsupported jira provider")
 	}
 	scopeID := strings.TrimSpace(claimScopeID)
 	if scopeID == "" {
@@ -171,17 +175,16 @@ func buildTarget(cfg activationConfig, claimScopeID string, getenv func(string) 
 	if baseURL == "" {
 		baseURL = "https://" + siteID
 	}
-	tokenEnv := strings.TrimSpace(cfg.TokenEnv)
-	token := ""
-	if tokenEnv != "" {
-		token = strings.TrimSpace(getenv(tokenEnv))
+	token, err := resolveEnv("token_env", cfg.TokenEnv, getenv)
+	if err != nil {
+		return TargetConfig{}, err
 	}
 	if token == "" {
-		return TargetConfig{}, configErrorf("token_env %s did not resolve a credential", tokenEnv)
+		return TargetConfig{}, configErrorf("token_env did not resolve a credential")
 	}
-	email := ""
-	if emailEnv := strings.TrimSpace(cfg.EmailEnv); emailEnv != "" {
-		email = strings.TrimSpace(getenv(emailEnv))
+	email, err := resolveEnv("email_env", cfg.EmailEnv, getenv)
+	if err != nil {
+		return TargetConfig{}, err
 	}
 	lookback, err := parseLookback(cfg.UpdatedLookback)
 	if err != nil {
@@ -207,6 +210,36 @@ func buildTarget(cfg activationConfig, claimScopeID string, getenv func(string) 
 	}, nil
 }
 
+// maxEnvNameLength bounds an environment variable name. Real names are short;
+// a longer value is far more likely a pasted secret than a name.
+const maxEnvNameLength = 128
+
+// envNamePattern is the POSIX portable environment variable name shape.
+var envNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// validEnvName reports whether name can be an environment variable name.
+func validEnvName(name string) bool {
+	return len(name) <= maxEnvNameLength && envNamePattern.MatchString(name)
+}
+
+// resolveEnv returns the trimmed value of the environment variable that the
+// config key names, or "" when the key is unset or the variable is empty. A
+// name that is not a valid environment variable name is rejected before the
+// environment is read, with a fixed message: a credential pasted into
+// token_env instead of the name of the variable that holds it must not reach
+// an error, a log line, or a status. No message in this package ever quotes
+// the configured name for the same reason, so it names the config key only.
+func resolveEnv(key, name string, getenv func(string) string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", nil
+	}
+	if !validEnvName(name) {
+		return "", configErrorf("%s is not a valid environment variable name", key)
+	}
+	return strings.TrimSpace(getenv(name)), nil
+}
+
 func resolveJQL(cfg activationConfig, getenv func(string) string) (string, error) {
 	direct := strings.TrimSpace(cfg.JQL)
 	jqlEnv := strings.TrimSpace(cfg.JQLEnv)
@@ -216,9 +249,12 @@ func resolveJQL(cfg activationConfig, getenv func(string) string) (string, error
 	case direct != "":
 		return direct, nil
 	case jqlEnv != "":
-		jql := strings.TrimSpace(getenv(jqlEnv))
+		jql, err := resolveEnv("jql_env", jqlEnv, getenv)
+		if err != nil {
+			return "", err
+		}
 		if jql == "" {
-			return "", configErrorf("jql_env %s did not resolve a JQL query", jqlEnv)
+			return "", configErrorf("jql_env did not resolve a JQL query")
 		}
 		return jql, nil
 	default:

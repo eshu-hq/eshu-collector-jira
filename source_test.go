@@ -285,7 +285,7 @@ func TestHandleLogsTheBoundedReasonForARejectedConfig(t *testing.T) {
 	if err := json.Unmarshal([]byte(strings.TrimSpace(logs)), &line); err != nil {
 		t.Fatalf("log is not one JSON line: %v", err)
 	}
-	if line.FailureClass != FailureInvalidConfig || line.Detail != "token_env JIRA_TOKEN did not resolve a credential" {
+	if line.FailureClass != FailureInvalidConfig || line.Detail != "token_env did not resolve a credential" {
 		t.Fatalf("log line = %+v, want the bounded config reason", line)
 	}
 }

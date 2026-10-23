@@ -66,9 +66,8 @@ func (h Handler) Handle(ctx context.Context, request Request) sdk.Result {
 	claim := request.Claim
 	settings, err := ParseSettings(request.Config, claim.Scope.ID, h.getenv)
 	if err != nil {
-		// ConfigError text names config keys and environment variable names
-		// only, so it is safe for the operator log and the only place the
-		// reason for a rejected config is visible.
+		// ConfigError text names config keys only and never quotes a
+		// configured value, so it is safe for the operator log.
 		h.logConfigFailure(claim, err)
 		return budgetResult(claim, started, configFailureClass(err))
 	}
