@@ -108,7 +108,11 @@ placeholder digest permanently (`manifest_test.go` fails on a real one), because
 it is embedded in the binary and a committed digest could only describe an older
 build. `scripts/pin-digest.sh <repo:tag>` only prints the `repo@sha256:...`
 reference of a pushed image; it edits nothing. `REF` must match
-`^[^@\s]+@sha256:[0-9a-f]{64}$` or seed exits non-zero. Without it the
+`^[a-z0-9]+([._-][a-z0-9]+)*(:[0-9]+)?(/[a-z0-9]+([._-][a-z0-9]+)*)*@sha256:[0-9a-f]{64}$`
+after one trailing newline is trimmed; anything else (quotes, `$`, `#`,
+brackets, whitespace, a second newline) exits non-zero before a file is
+written, and the error never echoes the value. The reference is written
+literally and is the only manifest byte that changes. Without it the
 repository placeholder digest is written unchanged.
 
 ## Cutover identity

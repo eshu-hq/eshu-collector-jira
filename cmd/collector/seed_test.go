@@ -125,9 +125,9 @@ func TestManifestForStampsOnlyADigestPinnedImage(t *testing.T) {
 	if len(got) <= len(collector.ManifestYAML)-200 {
 		t.Fatal("stamping must not drop manifest lines")
 	}
-	unchanged, err := manifestFor(collector.ManifestYAML, "  ")
+	unchanged, err := manifestFor(collector.ManifestYAML, "")
 	if err != nil || !bytes.Equal(unchanged, collector.ManifestYAML) {
-		t.Fatalf("a blank --image-ref must leave the manifest untouched (err %v)", err)
+		t.Fatalf("an empty --image-ref must leave the manifest untouched (err %v)", err)
 	}
 	for _, bad := range []string{
 		"ghcr.io/eshu-hq/eshu-collector-jira:latest", "ghcr.io/x@sha256:abc", "ghcr.io/x@sha256:" + strings.Repeat("G", 64),
@@ -203,13 +203,17 @@ func TestSeedFromTheBuiltBinary(t *testing.T) {
 	}
 }
 
-func TestManifestForKeepsDollarSignsLiteral(t *testing.T) {
+// TestStampImageReplacesLiterally calls the replacement directly with a value
+// the pattern would never admit, so the literal-replacement guarantee does not
+// rest on the pattern alone: a template replacement would expand "$1" and
+// "${0}" inside the reference.
+func TestStampImageReplacesLiterally(t *testing.T) {
 	t.Parallel()
 
 	ref := "reg.invalid/$1/${0}@sha256:" + strings.Repeat("b", 64)
-	got, err := manifestFor(collector.ManifestYAML, ref)
+	got, err := stampImage(collector.ManifestYAML, ref)
 	if err != nil {
-		t.Fatalf("manifestFor() error = %v", err)
+		t.Fatalf("stampImage() error = %v", err)
 	}
 	if !bytes.Contains(got, []byte("image: "+ref+"\n")) {
 		t.Fatalf("the reference was not written literally:\n%s", got)
@@ -246,8 +250,11 @@ func TestSeedImageRefFlagWinsOverEnvironment(t *testing.T) {
 	if got, err := run(t, []string{"--image-ref", flagRef}, envRef); err != nil || !strings.Contains(got, flagRef) || strings.Contains(got, envRef) {
 		t.Fatalf("flag and env: err=%v, want the flag to win", err)
 	}
-	if got, err := run(t, nil, "  "); err != nil || !strings.Contains(got, strings.Repeat("0", 64)) {
-		t.Fatalf("blank env: err=%v, want the repository placeholder unchanged", err)
+	if got, err := run(t, nil, ""); err != nil || !strings.Contains(got, strings.Repeat("0", 64)) {
+		t.Fatalf("empty env: err=%v, want the repository placeholder unchanged", err)
+	}
+	if _, err := run(t, nil, "  "); err == nil {
+		t.Fatal("a blank but non-empty environment reference must fail, not be ignored")
 	}
 	if _, err := run(t, nil, "not-a-digest-ref"); err == nil {
 		t.Fatal("an invalid environment reference must fail, not be ignored")

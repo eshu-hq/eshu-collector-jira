@@ -27,7 +27,15 @@ const (
 )
 
 var (
-	imageRefPattern          = regexp.MustCompile(`^[^@\s]+@sha256:[0-9a-f]{64}$`)
+	// imageRefPattern is the only reference shape seed stamps into a
+	// manifest: a lowercase repository (dot, dash, or underscore separated
+	// path segments, with an optional registry port), then a full sha256
+	// digest. It admits no quote, "$", "#", bracket, whitespace, or other
+	// YAML-significant character, so a stamped line is always a plain scalar.
+	// Go's "$" matches only at the end of the text, never before a final
+	// newline.
+	imageRefPattern = regexp.MustCompile(
+		`^[a-z0-9]+([._-][a-z0-9]+)*(:[0-9]+)?(/[a-z0-9]+([._-][a-z0-9]+)*)*@sha256:[0-9a-f]{64}$`)
 	manifestImageLinePattern = regexp.MustCompile(`(?m)^([ \t]*image:[ \t]*)\S+[ \t]*$`)
 )
 
@@ -37,13 +45,16 @@ var (
 // atomically with identical content. --image-ref, or the COLLECTOR_IMAGE_REF
 // environment variable when the flag is absent, stamps the digest-pinned image
 // reference the operator deployed into the manifest's artifact entry, because
-// an image cannot embed its own digest. Without either, the repository
+// an image cannot embed its own digest. One trailing newline is trimmed from
+// the value (an environment variable often carries one); anything else that
+// does not match imageRefPattern exits non-zero before any file is written,
+// and the error never echoes the value. Without a reference, the repository
 // placeholder is written unchanged.
 func runSeed(args []string, stdout io.Writer, getenv func(string) string) error {
 	flags := flag.NewFlagSet("seed", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	dest := flags.String("dest", "", "directory to write the collector binary and manifest into")
-	imageRef := flags.String("image-ref", "", "optional digest-pinned image reference (name@sha256:<64 hex>) to record in the manifest artifact; defaults to $"+imageRefEnv)
+	imageRef := flags.String("image-ref", "", "optional digest-pinned image reference (name@sha256:<64 lowercase hex>) to record in the manifest artifact; defaults to $"+imageRefEnv)
 	if err := flags.Parse(args); err != nil {
 		return fmt.Errorf("seed: %w", err)
 	}
@@ -54,7 +65,7 @@ func runSeed(args []string, stdout io.Writer, getenv func(string) string) error 
 	if err != nil {
 		return errors.New("seed: resolve own executable")
 	}
-	manifest, err := manifestFor(collector.ManifestYAML, firstNonBlank(*imageRef, getenv(imageRefEnv)))
+	manifest, err := manifestFor(collector.ManifestYAML, selectImageRef(*imageRef, getenv))
 	if err != nil {
 		return err
 	}
@@ -66,29 +77,41 @@ func runSeed(args []string, stdout io.Writer, getenv func(string) string) error 
 	return err
 }
 
-func firstNonBlank(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
+// selectImageRef returns the reference to stamp: the flag value when it is not
+// empty, otherwise the environment variable. Each has one trailing newline
+// trimmed first, so a lone newline counts as unset. Nothing else is trimmed.
+func selectImageRef(flagValue string, getenv func(string) string) string {
+	if ref := strings.TrimSuffix(flagValue, "\n"); ref != "" {
+		return ref
 	}
-	return ""
+	if getenv == nil {
+		return ""
+	}
+	return strings.TrimSuffix(getenv(imageRefEnv), "\n")
 }
 
-// manifestFor returns the manifest bytes to seed, stamping the image reference into the
-// artifact entry when one is given.
+// manifestFor returns the manifest bytes to seed, stamping the image reference
+// into the artifact entry when one is given. An empty image leaves the
+// manifest unchanged; any other value must match imageRefPattern exactly.
 func manifestFor(manifest []byte, image string) ([]byte, error) {
-	image = strings.TrimSpace(image)
 	if image == "" {
 		return manifest, nil
 	}
 	if !imageRefPattern.MatchString(image) {
-		return nil, errors.New("seed: --image-ref must be a digest-pinned reference (name@sha256:<64 hex>)")
+		return nil, errors.New("seed: image reference must be name@sha256:<64 lowercase hex digits>")
 	}
+	return stampImage(manifest, image)
+}
+
+// stampImage returns manifest with its one artifact image set to image,
+// changing nothing else. It replaces literally: a template replacement would
+// expand "$1" and "${name}" inside the reference and silently alter it. It
+// fails when the manifest does not declare exactly one artifact image, so a
+// stamp is never dropped or applied twice.
+func stampImage(manifest []byte, image string) ([]byte, error) {
 	if len(manifestImageLinePattern.FindAllIndex(manifest, -1)) != 1 {
 		return nil, errors.New("seed: manifest must declare exactly one artifact image to stamp")
 	}
-	// ReplaceAllFunc, not a template, so a reference holding "$" is literal.
 	return manifestImageLinePattern.ReplaceAllFunc(manifest, func(line []byte) []byte {
 		prefix := manifestImageLinePattern.FindSubmatch(line)[1]
 		return append(append([]byte(nil), prefix...), image...)
