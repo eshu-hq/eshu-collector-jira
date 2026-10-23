@@ -190,6 +190,41 @@ phase the SDK harness accepts for an optional component is
 `work_item.*` kinds are core-owned and feed real reducers. `manifest_test.go`
 fails if a phase list is added back.
 
+## Releasing
+
+`.github/workflows/release.yml` runs only when a tag `vMAJOR.MINOR.PATCH[-pre]`
+is pushed. Nothing runs on a pull request or a branch push, and the workflow
+deploys nothing.
+
+1. Merge the change to `main`, then tag the merge commit and push the tag.
+2. The workflow builds `linux/amd64` (the only platform the manifest declares),
+   pushes `ghcr.io/eshu-hq/eshu-collector-jira:<tag>`, writes the digest to the
+   job summary, signs the digest with cosign (keyless), and attaches a SLSA
+   build-provenance attestation and an SPDX SBOM attestation. It needs no
+   secret beyond the job's `GITHUB_TOKEN`.
+3. Copy the `ghcr.io/eshu-hq/eshu-collector-jira@sha256:<digest>` reference
+   from the job summary into the activation's `seed.image`. The deployment
+   stamps it into the manifest with `collector seed --image-ref`; the
+   repository manifest is not edited.
+4. Check the image before enabling an activation:
+
+```bash
+cosign verify ghcr.io/eshu-hq/eshu-collector-jira@sha256:<digest> \
+  --certificate-identity-regexp '^https://github.com/eshu-hq/eshu-collector-jira/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+gh attestation verify oci://ghcr.io/eshu-hq/eshu-collector-jira@sha256:<digest> \
+  -R eshu-hq/eshu-collector-jira
+```
+
+The GHCR package must be **public**: GitHub creates a package private by
+default, so after the first release set its visibility to public (package
+settings) before a cluster tries to pull it without credentials.
+
+`compatibleCore` in `manifest.yaml` is enforced by release builds of Eshu core.
+Check it against the core version of the target environment before enabling an
+activation; a range that excludes that version makes the host refuse the
+component.
+
 ## Build and test
 
 ```bash
