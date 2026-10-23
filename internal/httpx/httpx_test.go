@@ -31,11 +31,18 @@ func TestClassifyStatusFollowsThePolicy(t *testing.T) {
 		class    FailureClass
 		terminal bool
 	}{
-		{401, FailurePermissionHidden, true}, {403, FailurePermissionHidden, true},
-		{404, FailureDeleted, true}, {410, FailureArchived, true},
-		{408, FailureRateLimited, false}, {409, FailureRateLimited, false}, {425, FailureRateLimited, false}, {429, FailureRateLimited, false},
-		{500, FailureRetryable, false}, {503, FailureRetryable, false},
-		{400, FailureTerminal, true}, {422, FailureTerminal, true},
+		{401, FailurePermissionHidden, true},
+		{403, FailurePermissionHidden, true},
+		{404, FailureDeleted, true},
+		{410, FailureArchived, true},
+		{408, FailureRateLimited, false},
+		{409, FailureRateLimited, false},
+		{425, FailureRateLimited, false},
+		{429, FailureRateLimited, false},
+		{500, FailureRetryable, false},
+		{503, FailureRetryable, false},
+		{400, FailureTerminal, true},
+		{422, FailureTerminal, true},
 		{302, FailureRetryable, false},
 	}
 	for _, tc := range cases {
