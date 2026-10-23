@@ -186,6 +186,12 @@ func ClassifyProviderFailure(provider string, err error, policy StatusPolicy, fa
 	if errors.As(err, &failure) {
 		return failure
 	}
+	// A body past MaxResponseBytes is a property of the request, not a
+	// transient fault: retrying downloads up to the cap again and fails the
+	// same way. It is terminal.
+	if errors.Is(err, ErrResponseTooLarge) {
+		return withCarriedOperation(NewProviderFailure(provider, FailureTerminal, true, err), err)
+	}
 	var httpErr HTTPError
 	if errors.As(err, &httpErr) {
 		classified := policy.ClassifyStatus(httpErr.StatusCode)

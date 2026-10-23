@@ -253,3 +253,21 @@ func TestDoJSONHonorsContext(t *testing.T) {
 		t.Fatalf("error = %v, want a deadline HTTPError", err)
 	}
 }
+
+func TestOversizeResponseIsTerminalNotRetryable(t *testing.T) {
+	t.Parallel()
+
+	err := HTTPError{Provider: "jira", Message: "decode response", Operation: "search_issues", Cause: ErrResponseTooLarge}
+	failure := ClassifyProviderFailure("jira", err, StatusPolicy{}, FailureRetryable)
+	if !failure.TerminalFailure() || failure.FailureClass() != string(FailureTerminal) {
+		t.Fatalf("class=%q terminal=%t, want a terminal failure", failure.FailureClass(), failure.TerminalFailure())
+	}
+	if failure.FailureOperation() != "search_issues" {
+		t.Fatalf("operation = %q, want the endpoint token kept", failure.FailureOperation())
+	}
+	// A transient decode failure stays retryable.
+	transient := HTTPError{Provider: "jira", Message: "decode response", Cause: errors.New("unexpected EOF")}
+	if ClassifyProviderFailure("jira", transient, StatusPolicy{}, FailureRetryable).TerminalFailure() {
+		t.Fatal("an ordinary decode error must stay retryable")
+	}
+}
