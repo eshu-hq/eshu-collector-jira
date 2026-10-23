@@ -3,6 +3,16 @@
 # credentials. It holds no secrets: token_env and email_env NAME environment
 # variables the worker process exports; their values never appear here, in
 # facts, in logs, or in statuses.
+#
+# Cutover identity. When this activation replaces the in-tree Jira collector,
+# these values must equal the in-tree ones, or every stable fact key and the
+# payload's collector_instance_id change:
+#   host.scope.id        = the in-tree target's scope_id
+#   host.scope.kind      = jira_site
+#   host.sourceSystem    = the in-tree source system (jira)
+#   activation instance id (--instance) = the in-tree collector instance id
+# The values below are placeholders. Read the real ones from the live in-tree
+# configuration; do not invent new ones.
 host:
   # Source system recorded on every fact. Match the claim the coordinator plans.
   sourceSystem: jira

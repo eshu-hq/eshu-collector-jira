@@ -107,6 +107,30 @@ entry, because an image cannot embed its own digest. `REF` must match
 `^[^@\s]+@sha256:[0-9a-f]{64}$` or seed exits non-zero. Without it the
 repository placeholder digest is written unchanged.
 
+## Cutover identity
+
+Replacing the in-tree Jira collector with this one must not re-key a single
+fact. These activation values have to equal what the in-tree collector uses for
+the same site:
+
+| Activation value | Must equal the in-tree value | If it differs |
+| --- | --- | --- |
+| `host.scope.id` | the in-tree target's `scope_id` (the `targets[].scope_id` in the in-tree collector instance configuration) | every stable key and `scope_id` changes: the site is ingested as a new scope |
+| `host.scope.kind` | `jira_site` | the scope no longer matches the in-tree scope kind |
+| `host.sourceSystem` | the in-tree source system, `jira` | `source_ref` and `source_system` change on every fact |
+| activation instance id (`--instance`) | the in-tree collector instance id | `collector_instance_id` in the `work_item.record` payload changes |
+
+The collector copies `scope_id`, `collector_instance_id`, and `source_system`
+from the claim the host sends; it has no setting of its own for them. A
+`scope_id` in `config` is only a cross-check and is rejected when it differs
+from `host.scope.id`.
+
+Before enabling an activation, read the three values from the live in-tree
+collector instance configuration and write them into the activation. Do not
+copy the placeholders in `config.example.yaml` (`jira:site:example`,
+`jira-primary`). Run only one of the two collectors per site: with the same
+scope and instance id they would write the same stable keys.
+
 ## Producer grants
 
 All nine kinds are core-owned, so the host refuses them without a live producer
