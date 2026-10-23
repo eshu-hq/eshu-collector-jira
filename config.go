@@ -125,7 +125,7 @@ func decodeReason(err error) string {
 	case strings.HasPrefix(err.Error(), "json: unknown field"):
 		return strings.TrimPrefix(err.Error(), "json: ")
 	default:
-		return "malformed config"
+		return "malformed JSON"
 	}
 }
 

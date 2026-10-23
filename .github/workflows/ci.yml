@@ -38,9 +38,23 @@ jobs:
           go-version-file: go.mod
       - run: go test -count=1 -run TestImportBoundaryRejectsCoreAndCrossCollectorImports .
 
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image without pushing it
+        run: docker build -t eshu-collector-jira:ci .
+      - name: Seed contract
+        run: |
+          seed="$RUNNER_TEMP/seed"
+          mkdir -p "$seed" && chmod 777 "$seed"
+          docker run --rm --network none -v "$seed:/component" eshu-collector-jira:ci seed --dest /component
+          test -x "$seed/collector"
+          test -s "$seed/manifest.yaml"
+
   ci-complete:
     if: always()
-    needs: [vet, test, boundary]
+    needs: [vet, test, boundary, image]
     runs-on: ubuntu-latest
     steps:
       - name: Require every job to pass

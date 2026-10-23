@@ -11,7 +11,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/collector ./cmd/collector
+RUN CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o /out/collector ./cmd/collector
 
 # Base digests resolved 2026-09-17; re-pin with the scripts/pin-digest.sh flow
 # when bumping either base.

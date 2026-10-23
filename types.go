@@ -228,25 +228,25 @@ type CollectionResult struct {
 
 // CollectionStats carries bounded collection counters for logs and tests.
 type CollectionStats struct {
-	SearchPages              int
-	ChangelogPages           int
-	RemoteLinkPages          int
-	MetadataPages            int
-	IssuesEmitted            int
-	ChangelogEventsEmitted   int
-	RemoteLinksEmitted       int
-	RemoteLinksRejected      int
-	MetadataObjectsScanned   int
-	MetadataObjectsEmitted   int
-	UnsupportedMetadata      int
-	PermissionHiddenMetadata int
-	StaleMetadata            int
-	MetadataRedactions       int
-	PartialFailures          int
-	RateLimits               int
-	RetryAfterSeconds        int
-	StaleWindows             int
-	UnsupportedProviderLinks int
+	SearchPages              int `json:"search_pages"`
+	ChangelogPages           int `json:"changelog_pages"`
+	RemoteLinkPages          int `json:"remote_link_pages"`
+	MetadataPages            int `json:"metadata_pages"`
+	IssuesEmitted            int `json:"issues_emitted"`
+	ChangelogEventsEmitted   int `json:"changelog_events_emitted"`
+	RemoteLinksEmitted       int `json:"remote_links_emitted"`
+	RemoteLinksRejected      int `json:"remote_links_rejected"`
+	MetadataObjectsScanned   int `json:"metadata_objects_scanned"`
+	MetadataObjectsEmitted   int `json:"metadata_objects_emitted"`
+	UnsupportedMetadata      int `json:"unsupported_metadata"`
+	PermissionHiddenMetadata int `json:"permission_hidden_metadata"`
+	StaleMetadata            int `json:"stale_metadata"`
+	MetadataRedactions       int `json:"metadata_redactions"`
+	PartialFailures          int `json:"partial_failures"`
+	RateLimits               int `json:"rate_limits"`
+	RetryAfterSeconds        int `json:"retry_after_seconds"`
+	StaleWindows             int `json:"stale_windows"`
+	UnsupportedProviderLinks int `json:"unsupported_provider_links"`
 }
 
 // EvidenceClient fetches Jira work-item evidence for one target and time
