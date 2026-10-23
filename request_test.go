@@ -5,6 +5,7 @@ package collector
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -77,5 +78,67 @@ func TestParseRequestRejectsBadInput(t *testing.T) {
 				t.Fatalf("error text is not bounded: %d bytes", len(err.Error()))
 			}
 		})
+	}
+}
+
+// TestParseRequestEnforcesTheStdinCapOnAValidRequest uses an otherwise valid
+// request padded to the cap, so it is rejected for size alone: without the
+// read limit a padded request is accepted, and a request that fails some other
+// check proves nothing about the cap.
+func TestParseRequestEnforcesTheStdinCapOnAValidRequest(t *testing.T) {
+	t.Parallel()
+
+	padded := func(padding int) string {
+		return requestJSON(t, func(doc map[string]any) {
+			doc["config"].(map[string]any)["pad"] = strings.Repeat("x", padding)
+		})
+	}
+	base := len(padded(0))
+	atCap := padded(MaxRequestBytes - base)
+	if len(atCap) != MaxRequestBytes {
+		t.Fatalf("test request is %d bytes, want exactly %d", len(atCap), MaxRequestBytes)
+	}
+	if _, err := ParseRequest(strings.NewReader(atCap)); err != nil {
+		t.Fatalf("a valid request of exactly %d bytes error = %v, want accepted", MaxRequestBytes, err)
+	}
+	overCap := padded(MaxRequestBytes - base + 1)
+	_, err := ParseRequest(strings.NewReader(overCap))
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("a valid request of %d bytes error = %v, want a size rejection", len(overCap), err)
+	}
+	if strings.Contains(err.Error(), "xxxx") {
+		t.Fatal("the size error must not quote the input")
+	}
+}
+
+// countingReader serves limit bytes of 'x', then fails, and counts what was
+// read, so a parser that does not bound its read is caught without hanging.
+type countingReader struct {
+	read  int
+	limit int
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	if c.read >= c.limit {
+		return 0, errors.New("test reader exhausted: the parser read past its bound")
+	}
+	n := min(len(p), c.limit-c.read)
+	for i := range n {
+		p[i] = 'x'
+	}
+	c.read += n
+	return n, nil
+}
+
+func TestParseRequestStopsReadingAtTheCap(t *testing.T) {
+	t.Parallel()
+
+	reader := &countingReader{limit: 8 * MaxRequestBytes}
+	_, err := ParseRequest(reader)
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("error = %v, want a size rejection", err)
+	}
+	if reader.read > MaxRequestBytes+1 {
+		t.Fatalf("read %d bytes, want at most %d (the cap plus one)", reader.read, MaxRequestBytes+1)
 	}
 }
