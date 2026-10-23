@@ -1,0 +1,10 @@
+# Build output and local scratch files.
+/collector
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+.env
+.env.*
+.DS_Store
