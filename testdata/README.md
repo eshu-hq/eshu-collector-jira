@@ -109,8 +109,10 @@ freshness hint. These differ by design or are not comparable:
 4. **Trusted deletion.** `allow_empty_successor` cannot be honored: SDK
    v0.2.0's `Generation` has no `trusted_deletion` field. The config key is
    rejected when true (terminal `unsupported_option`) instead of silently ignored.
-5. **Response size cap.** Provider responses over 32 MiB fail; the in-tree
-   helper reads without a bound.
+5. **Response size cap.** A provider response body over 32 MiB fails the claim
+   as `terminal` (class `terminal`, no facts). The in-tree helper reads without
+   a bound. Terminal, not retryable: the size follows from the request, so a
+   retry downloads up to the cap again and fails the same way.
 6. **Issues without an id or key** fail terminal (`invalid_evidence`) at
    search time; in-tree they reach the changelog call with a malformed path.
 7. **Unresolvable configuration** is a terminal result (`invalid_config`);
@@ -129,3 +131,16 @@ freshness hint. These differ by design or are not comparable:
 10. **Retry guidance.** A retryable result must carry `retry_after_seconds`; a
    missing provider `Retry-After` becomes 60 s for rate limits and 30 s
    otherwise, and provider values are capped at 24 h.
+11. **Changelog page cap.** The changelog walk for one issue stops after 100
+    pages (`maxChangelogPages`). In-tree the walk is bounded only by the
+    issue's `changelog_limit` and the provider's own pagination, so a provider
+    that advertises pages forever loops. Here the walk ends quietly with the
+    transitions read so far; `stats.ChangelogPages` shows it, and no warning
+    fact is emitted.
+12. **Base URL.** Only `http` and `https` base URLs are accepted, and a parse
+    error never quotes the URL (it can carry a credential). In-tree accepts any
+    scheme with a host and quotes the parse error. A plain `http` base URL sends
+    the Basic or Bearer credential in clear text; use `https`.
+13. **No `unchanged` result.** The collector never returns `unchanged`: the host
+    sends no previous digest, so duplicate detection rides on
+    `generation.freshness_hint`.
