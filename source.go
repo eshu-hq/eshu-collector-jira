@@ -32,7 +32,10 @@ type Handler struct {
 	Now func() time.Time
 	// NewClient builds the evidence client; nil selects the HTTP client.
 	NewClient ClientFactory
-	// Log receives one bounded JSON line per claim; nil discards it.
+	// Log receives one bounded JSON diagnostic line per claim; nil discards
+	// it. The binary points it at stderr, which the extension host's process
+	// runner does not surface (it keeps only a byte count), so the line helps
+	// a local run and a test, not an operator in production.
 	Log io.Writer
 }
 
@@ -67,7 +70,7 @@ func (h Handler) Handle(ctx context.Context, request Request) sdk.Result {
 	settings, err := ParseSettings(request.Config, claim.Scope.ID, h.getenv)
 	if err != nil {
 		// ConfigError text names config keys only and never quotes a
-		// configured value, so it is safe for the operator log.
+		// configured value, so it is safe for the diagnostic log line.
 		h.logConfigFailure(claim, err)
 		return budgetResult(claim, started, configFailureClass(err))
 	}
@@ -204,8 +207,10 @@ func checkBudgets(facts []sdk.Fact, limits ResourceUse) string {
 	return ""
 }
 
-// logLine is the bounded operator log record. Every field is a counter or a
-// fixed-vocabulary token; none carries a URL, a provider body, or a secret.
+// logLine is the bounded diagnostic record written to stderr. The host drops
+// it (see Handler.Log), so the SDK status rows are the only per-claim signal
+// an operator has today. Every field is a counter or a fixed-vocabulary token;
+// none carries a URL, a provider body, or a secret.
 type logLine struct {
 	Event        string          `json:"event"`
 	Outcome      string          `json:"outcome"`

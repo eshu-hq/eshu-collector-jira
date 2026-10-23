@@ -18,7 +18,7 @@ const defaultUpdatedLookback = 24 * time.Hour
 // ConfigError reports an invalid activation config. Its text names config keys
 // only. It never carries a resolved secret, and it never quotes a configured
 // value (an environment variable name included), because a credential pasted
-// into a *_env key would otherwise reach the operator log.
+// into a *_env key would otherwise reach the diagnostic log line.
 type ConfigError struct {
 	msg   string
 	class string

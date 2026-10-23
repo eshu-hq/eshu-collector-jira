@@ -16,7 +16,9 @@ const (
 	// SourceSystem is the source system name facts carry when the claim does
 	// not name one. Hosted claims carry the activation's source system.
 	SourceSystem = "jira"
-	// MetricsPrefix is the component-owned metric prefix from the manifest.
+	// MetricsPrefix is the component-owned metric prefix the manifest declares.
+	// Nothing in this repository emits a metric under it yet; see the README
+	// section "Operator signals".
 	MetricsPrefix = "eshu_dp_jira_collector_"
 	// ProviderJiraCloud selects Jira Cloud REST API collection.
 	ProviderJiraCloud = "jira_cloud"

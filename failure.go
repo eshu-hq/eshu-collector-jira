@@ -47,7 +47,7 @@ type Failure struct {
 
 // classifyFailure maps a collection error to its bounded failure. The archived
 // sentinel keeps the endpoint token a 410 carried, and a partial-collection
-// wrapper keeps its stage and counters for the operator log.
+// wrapper keeps its stage and counters for the diagnostic log line.
 func classifyFailure(err error) Failure {
 	var invalid InvalidEvidenceError
 	if errors.As(err, &invalid) {

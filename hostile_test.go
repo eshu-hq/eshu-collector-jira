@@ -147,7 +147,7 @@ func TestUnexpectedProviderShapesFailBoundedNeverPanic(t *testing.T) {
 			}
 			mustValidate(t, result)
 			if len(logs) > 2048 {
-				t.Fatalf("operator log is %d bytes, want one bounded line", len(logs))
+				t.Fatalf("stderr log line is %d bytes, want one bounded line", len(logs))
 			}
 		})
 	}

@@ -42,7 +42,10 @@ target: `site_id`, `base_url`, `email_env`, `token_env`, `jql` or `jql_env`,
 `issue_limit`, `updated_lookback`, `changelog_limit`, `remote_link_limit`,
 `metadata_limit`, and an optional `limits` block. Unknown keys fail closed.
 `token_env` and `email_env` name environment variables the worker exports.
-Secret values never appear in facts, source URIs, logs, or statuses.
+Secret values never appear in facts, source URIs, logs, or statuses. The three
+`*_env` keys must hold environment variable names (`^[A-Za-z_][A-Za-z0-9_]*$`,
+at most 128 bytes); a rejection message names the config key and never quotes
+what was configured, so a credential pasted into one of them cannot be echoed.
 
 `allow_empty_successor` (default false, unchanged) is parsed. When true the claim
 fails closed with a terminal result whose status class is `unsupported_option`.
@@ -58,6 +61,35 @@ A site with a large issue window returns more than the host's default 4 MiB
 stdout cap. Raise `process.stdout_limit_bytes` and `limits.maxResultBytes`
 together; the collector fails terminal with `result_budget_exceeded` rather
 than letting the host drop an oversized result.
+
+## Operator signals
+
+What an operator can see for a claim today:
+
+- **SDK status rows.** Every result carries a bounded status: its class
+  (`complete`, `warning`, or a failure class such as `rate_limited`,
+  `invalid_config`, `unsupported_option`, `claim_deadline_exceeded`), the
+  source latency, and for a retryable failure `retry_after_seconds`.
+- **Host metrics.** The extension host's own claim metrics, which eshu-hq/eshu#8908
+  tracks.
+
+What an operator does **not** see:
+
+- **The stderr log line.** The collector writes one JSON line per claim to
+  stderr: the config rejection reason, the failed operation (`search_issues`,
+  `read_changelog`, ...), the HTTP status, and collection counters. The host's
+  process runner keeps stderr only as a byte count and drops the text, so none
+  of that reaches a dashboard or a status row. The line is for a local run
+  (`collector --sdk-stdio < request.json`) and for tests.
+- **Spans and metrics.** The in-tree collector emitted a fetch span and fetch
+  counters. This collector has no equivalent. The manifest declares
+  `telemetry.metricsPrefix: eshu_dp_jira_collector_`, but nothing in this
+  repository emits a metric under it.
+
+Until the host forwards stderr or collector metrics (eshu-hq/eshu#8908), a
+rejected config shows up only as the failure class on the status row; find the
+cause by running the collector with the activation's config and a recorded
+request.
 
 ## Image and seeding
 

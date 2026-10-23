@@ -16,7 +16,7 @@ import (
 )
 
 // runScenario handles one scenario (optionally edited) and returns the result,
-// the recorded HTTP traffic, and the operator log.
+// the recorded HTTP traffic, and the stderr log line.
 func runScenario(t *testing.T, name string, edit func(*replayScenario, *Request)) (sdk.Result, *replayTransport, string) {
 	t.Helper()
 	scenario := loadScenario(t, name)
@@ -180,7 +180,7 @@ func TestHandleFailureStatesCarryNoFacts(t *testing.T) {
 			}
 			for _, secret := range []string{testToken, "fixture error", "no replay entry", "http://jira.fixture.invalid"} {
 				if strings.Contains(logs, secret) {
-					t.Fatalf("operator log leaks %q: %s", secret, logs)
+					t.Fatalf("stderr log line leaks %q: %s", secret, logs)
 				}
 			}
 		})
