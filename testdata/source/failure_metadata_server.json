@@ -5,7 +5,7 @@
     "jql": "project = ESHU",
     "site_id": "jira.fixture.invalid",
     "token_env": "JIRA_TOKEN",
-    "updated_lookback": "48h"
+    "updated_lookback": "87600h"
   },
   "env": {
     "JIRA_EMAIL": "bot@fixture.invalid",
