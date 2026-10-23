@@ -1,0 +1,275 @@
+{
+  "config": {
+    "base_url": "http://jira.fixture.invalid",
+    "changelog_limit": 2,
+    "email_env": "JIRA_EMAIL",
+    "issue_limit": 2,
+    "jql": "project = ESHU",
+    "metadata_limit": 1,
+    "remote_link_limit": 1,
+    "site_id": "jira.fixture.invalid",
+    "token_env": "JIRA_TOKEN",
+    "updated_lookback": "48h"
+  },
+  "env": {
+    "JIRA_EMAIL": "bot@fixture.invalid",
+    "JIRA_TOKEN": "tok-SECRET-123"
+  },
+  "name": "paged",
+  "now": "2026-10-01T12:00:00Z",
+  "responses": {
+    "GET /rest/api/3/field/search?maxResults=1&startAt=0": {
+      "body": {
+        "isLast": false,
+        "maxResults": 1,
+        "startAt": 0,
+        "total": 9,
+        "values": [
+          {
+            "id": "summary",
+            "name": "Summary",
+            "schema": {
+              "system": "summary",
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "status": 200
+    },
+    "GET /rest/api/3/issue/ESHU-1/changelog?maxResults=1&startAt=1": {
+      "body": {
+        "isLast": false,
+        "maxResults": 1,
+        "startAt": 1,
+        "total": 3,
+        "values": [
+          {
+            "created": "2026-09-21T09:00:00.000+0000",
+            "id": "6002",
+            "items": [
+              {
+                "field": "status",
+                "fromString": "B",
+                "toString": "C"
+              },
+              {
+                "field": "priority",
+                "fromString": "Low",
+                "toString": "High"
+              }
+            ]
+          }
+        ]
+      },
+      "status": 200
+    },
+    "GET /rest/api/3/issue/ESHU-1/changelog?maxResults=2&startAt=0": {
+      "body": {
+        "isLast": false,
+        "maxResults": 1,
+        "startAt": 0,
+        "total": 3,
+        "values": [
+          {
+            "created": "2026-09-20T09:00:00.000+0000",
+            "id": "6001",
+            "items": [
+              {
+                "field": "status",
+                "fromString": "A",
+                "toString": "B"
+              }
+            ]
+          }
+        ]
+      },
+      "status": 200
+    },
+    "GET /rest/api/3/issue/ESHU-1/remotelink": {
+      "body": [
+        {
+          "application": {
+            "name": "GitHub",
+            "type": "com.github"
+          },
+          "id": 8001,
+          "object": {
+            "url": "https://github.com/a/b/pull/1"
+          }
+        },
+        {
+          "application": {
+            "name": "GitHub",
+            "type": "com.github"
+          },
+          "id": 8002,
+          "object": {
+            "url": "https://github.com/a/b/pull/2"
+          }
+        }
+      ],
+      "status": 200
+    },
+    "GET /rest/api/3/issue/ESHU-2/changelog?maxResults=2&startAt=0": {
+      "body": {
+        "values": []
+      },
+      "status": 200
+    },
+    "GET /rest/api/3/issue/ESHU-2/remotelink": {
+      "body": [],
+      "status": 200
+    },
+    "GET /rest/api/3/issuetype/project?projectId=10000": {
+      "body": [
+        {
+          "id": "10002",
+          "name": "Task"
+        },
+        {
+          "id": "10003",
+          "name": "Bug"
+        }
+      ],
+      "status": 200
+    },
+    "GET /rest/api/3/project/search?maxResults=1&startAt=0": {
+      "body": {
+        "isLast": false,
+        "maxResults": 1,
+        "startAt": 0,
+        "total": 2,
+        "values": [
+          {
+            "id": "10000",
+            "key": "ESHU",
+            "name": "Eshu Platform",
+            "projectTypeKey": "software"
+          }
+        ]
+      },
+      "status": 200
+    },
+    "GET /rest/api/3/statuses/search?maxResults=1&startAt=0": {
+      "body": {
+        "isLast": false,
+        "maxResults": 1,
+        "startAt": 0,
+        "total": 5,
+        "values": [
+          {
+            "id": "3",
+            "name": "In Progress",
+            "statusCategory": "IN_PROGRESS"
+          }
+        ]
+      },
+      "status": 200
+    },
+    "GET /rest/api/3/workflows/search?maxResults=1&startAt=0": {
+      "body": {
+        "isLast": false,
+        "maxResults": 1,
+        "startAt": 0,
+        "total": 3,
+        "values": [
+          {
+            "id": "wf-1",
+            "name": "W",
+            "scope": {
+              "type": "GLOBAL"
+            },
+            "version": {
+              "id": "v",
+              "versionNumber": 1
+            }
+          }
+        ]
+      },
+      "status": 200
+    },
+    "POST /rest/api/3/search/jql#": {
+      "body": {
+        "isLast": false,
+        "issues": [
+          {
+            "fields": {
+              "assignee": {
+                "accountId": "acct-1",
+                "displayName": "Person 1"
+              },
+              "created": "2026-09-01T10:00:00.000+0000",
+              "issuetype": {
+                "id": "10002",
+                "name": "Task"
+              },
+              "project": {
+                "id": "10000",
+                "key": "ESHU",
+                "name": "Eshu Platform"
+              },
+              "reporter": {
+                "accountId": "acct-2",
+                "displayName": "Person 2"
+              },
+              "resolutiondate": null,
+              "status": {
+                "id": "3",
+                "name": "To Do"
+              },
+              "summary": "One",
+              "updated": "2026-09-30T11:30:00.000+0000"
+            },
+            "id": "10001",
+            "key": "ESHU-1",
+            "self": "http://jira.fixture.invalid/rest/api/3/issue/10001?token=leak#frag"
+          }
+        ],
+        "nextPageToken": "p2"
+      },
+      "status": 200
+    },
+    "POST /rest/api/3/search/jql#p2": {
+      "body": {
+        "isLast": false,
+        "issues": [
+          {
+            "fields": {
+              "assignee": {
+                "accountId": "acct-1",
+                "displayName": "Person 1"
+              },
+              "created": "2026-09-01T10:00:00.000+0000",
+              "issuetype": {
+                "id": "10002",
+                "name": "Task"
+              },
+              "project": {
+                "id": "10000",
+                "key": "ESHU",
+                "name": "Eshu Platform"
+              },
+              "reporter": {
+                "accountId": "acct-2",
+                "displayName": "Person 2"
+              },
+              "resolutiondate": null,
+              "status": {
+                "id": "3",
+                "name": "To Do"
+              },
+              "summary": "Two",
+              "updated": "2026-09-30T11:30:00.000+0000"
+            },
+            "id": "10002",
+            "key": "ESHU-2",
+            "self": "http://jira.fixture.invalid/rest/api/3/issue/10002?token=leak#frag"
+          }
+        ],
+        "nextPageToken": "p3"
+      },
+      "status": 200
+    }
+  }
+}

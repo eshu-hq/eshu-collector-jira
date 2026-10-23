@@ -1,20 +1,41 @@
+# Example component activation config for the Jira collector. Copy it, replace
+# the placeholder host and scope, and point the environment variables at real
+# credentials. It holds no secrets: token_env and email_env NAME environment
+# variables the worker process exports; their values never appear here, in
+# facts, in logs, or in statuses.
 host:
+  # Source system recorded on every fact. Match the claim the coordinator plans.
   sourceSystem: jira
   scope:
-    id: component:jira-primary
-    kind: component
+    # One activation covers one Jira target. The scope id is the stable
+    # identity of the site; it is part of every stable fact key, so choose it
+    # once and keep it.
+    id: jira:site:example
+    kind: jira_site
 process:
   command: ./collector
   args:
     - --sdk-stdio
+  # A site with a large issue window returns more than the host's default
+  # 4 MiB stdout cap. Raise this together with config.limits.maxResultBytes;
+  # the collector fails terminal with result_budget_exceeded rather than let
+  # the host drop an oversized result.
+  stdout_limit_bytes: 67108864
 config:
-  source:
-    mode: local-file
-    input: ./testdata/complete.json
-    sourceURI: https://example.invalid/source/jira
-  freshness:
-    previousDigest: ""
+  site_id: example.atlassian.net
+  base_url: https://example.atlassian.net
+  email_env: JIRA_EMAIL
+  token_env: JIRA_API_TOKEN
+  # Exactly one of jql and jql_env is required.
+  jql: project = EXAMPLE
+  # jql_env: JIRA_JQL
+  issue_limit: 50
+  updated_lookback: 24h
+  changelog_limit: 50
+  remote_link_limit: 50
+  metadata_limit: 100
   limits:
-    maxRecordsPerClaim: 5000
-    maxPayloadBytes: 65536
+    maxRecordsPerClaim: 50000
+    maxPayloadBytes: 1048576
+    maxResultBytes: 50331648
     claimTimeoutSeconds: 300

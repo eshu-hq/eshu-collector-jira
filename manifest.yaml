@@ -17,17 +17,56 @@ spec:
     - platform: linux/amd64
       image: ghcr.io/eshu-hq/eshu-collector-jira@sha256:0000000000000000000000000000000000000000000000000000000000000000
   emittedFacts:
-    - kind: dev.eshu.collector.jira.snapshot
+    - kind: work_item.record
+      payloadSchemaRef: work_item.record
       schemaVersions:
         - 1.0.0
       sourceConfidence:
         - reported
-    - kind: dev.eshu.collector.jira.record
+    - kind: work_item.transition
+      payloadSchemaRef: work_item.transition
       schemaVersions:
         - 1.0.0
       sourceConfidence:
-        - observed
-    - kind: dev.eshu.collector.jira.warning
+        - reported
+    - kind: work_item.external_link
+      payloadSchemaRef: work_item.external_link
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: work_item.project_metadata
+      payloadSchemaRef: work_item.project_metadata
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: work_item.issue_type_metadata
+      payloadSchemaRef: work_item.issue_type_metadata
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: work_item.status_metadata
+      payloadSchemaRef: work_item.status_metadata
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: work_item.workflow_metadata
+      payloadSchemaRef: work_item.workflow_metadata
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: work_item.field_metadata
+      payloadSchemaRef: work_item.field_metadata
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: work_item.metadata_warning
+      payloadSchemaRef: work_item.metadata_warning
       schemaVersions:
         - 1.0.0
       sourceConfidence:

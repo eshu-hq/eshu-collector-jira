@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/sdk/go/collector/conformance"
 )
 
-// supportedCoreRange is the manifest compatibleCore this template pins,
+// supportedCoreRange is the manifest compatibleCore this collector pins,
 // matching the sdk-compatibility row for SDK v0.2.0.
 const supportedCoreRange = ">=0.0.5 <0.2.0"
 
@@ -30,8 +30,8 @@ func TestCompatibilityMatrixSupportedPair(t *testing.T) {
 	if hostRejectsCoreRange(manifest.Spec.CompatibleCore, "0.1.0") {
 		t.Fatalf("pinned range %q must cover supported core 0.1.0", manifest.Spec.CompatibleCore)
 	}
-	result := mustCollect(t, "complete.json", testClaim(), testObservedAt(), "")
-	report := conformance.Run(conformance.Request{Manifest: manifest, Fixtures: []sdk.Result{result}, Mode: conformance.ModeFixture})
+	result, _ := collectScenario(t, "basic")
+	report := conformance.Run(conformanceRequest(manifest, result))
 	if !report.OK() {
 		t.Fatalf("supported pair findings = %#v, want passed", report.Findings)
 	}
@@ -44,17 +44,17 @@ func TestCompatibilityMatrixRejectsUnsupportedVersions(t *testing.T) {
 	t.Parallel()
 
 	manifest := loadManifestForMatrix(t)
-	complete := mustCollect(t, "complete.json", testClaim(), testObservedAt(), "")
+	complete, _ := collectScenario(t, "basic")
 
 	unsupportedProtocol := complete
 	unsupportedProtocol.ProtocolVersion = "collector-sdk/v9alpha9"
-	if report := conformance.Run(conformance.Request{Manifest: manifest, Fixtures: []sdk.Result{unsupportedProtocol}, Mode: conformance.ModeFixture}); report.OK() {
+	if report := conformance.Run(conformanceRequest(manifest, unsupportedProtocol)); report.OK() {
 		t.Fatal("unsupported protocol: report OK = true, want failed")
 	}
 
 	unversioned := loadManifestForMatrix(t)
 	unversioned.Spec.EmittedFacts[0].SchemaVersions = nil
-	if report := conformance.Run(conformance.Request{Manifest: unversioned, Fixtures: []sdk.Result{complete}, Mode: conformance.ModeFixture}); report.OK() {
+	if report := conformance.Run(conformanceRequest(unversioned, complete)); report.OK() {
 		t.Fatal("unversioned fact kind: report OK = true, want failed")
 	} else if !hasFinding(report, conformance.FindingManifestInvalid) {
 		t.Fatalf("unversioned findings = %#v, want manifest_invalid", report.Findings)
@@ -67,13 +67,13 @@ func TestCompatibilityMatrixRejectsUnsupportedVersions(t *testing.T) {
 	}
 }
 
-// hostRejectsCoreRange is the template-side mirror of the host's
+// hostRejectsCoreRange is the collector-side mirror of the host's
 // spec.compatibleCore enforcement: a manifest whose declared range does not
 // cover the running core never activates. It evaluates the space-separated
-// comparators the template actually pins (>= lower bound, < upper bound) with
+// comparators the collector actually pins (>= lower bound, < upper bound) with
 // numeric segment comparison, so the matrix proves the pinned range admits a
 // supported core and a future range does not. Full range parsing stays with
-// the core host; this locks the template's pin, not the host's parser.
+// the core host; this locks the collector's pin, not the host's parser.
 func hostRejectsCoreRange(manifestRange, runningCore string) bool {
 	return !coreRangeCovers(manifestRange, runningCore)
 }

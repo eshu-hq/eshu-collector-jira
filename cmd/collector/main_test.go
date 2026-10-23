@@ -5,211 +5,152 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	collector "github.com/eshu-hq/eshu-collector-jira"
 	sdk "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
-// TestNestedOptionalStringSeparatesMissingFromMalformed proves a missing key
-// falls back to the placeholder while a present-but-malformed value fails
-// closed instead of silently emitting against the placeholder.
-func TestNestedOptionalStringSeparatesMissingFromMalformed(t *testing.T) {
-	t.Parallel()
+const testToken = "tok-SECRET-123"
 
-	value, present, err := nestedOptionalString(map[string]any{}, "source", "sourceURI")
-	if err != nil || present || value != "" {
-		t.Fatalf("missing key = (%q, %v, %v), want empty/absent/nil", value, present, err)
-	}
-	if _, _, err := nestedOptionalString(map[string]any{
-		"source": map[string]any{"sourceURI": 42},
-	}, "source", "sourceURI"); err == nil {
-		t.Fatal("malformed value error = nil, want failure")
-	}
-	value, present, err = nestedOptionalString(map[string]any{
-		"source": map[string]any{"sourceURI": "https://example.invalid/x"},
-	}, "source", "sourceURI")
-	if err != nil || !present || value != "https://example.invalid/x" {
-		t.Fatalf("valid key = (%q, %v, %v), want value/present/nil", value, present, err)
+func claim() sdk.Claim {
+	now := time.Now().UTC()
+	return sdk.Claim{
+		ComponentID: collector.ComponentID, InstanceID: "jira-qa", CollectorKind: "jira", SourceSystem: "jira",
+		Scope: sdk.Scope{ID: "jira:site:fixture", Kind: "jira_site"}, SourceRunID: "run-1", GenerationID: "generation-1",
+		WorkItemID: "work-1", FencingToken: "7", Attempt: 1, Deadline: now.Add(time.Hour), ConfigHandle: "component-config:jira",
 	}
 }
 
-// TestNegativeLimitFlagsFailClosed proves negative CLI limits fail instead
-// of silently selecting defaults, matching the config-file posture.
-func TestNegativeLimitFlagsFailClosed(t *testing.T) {
-	t.Parallel()
-
-	var stdout, stderr bytes.Buffer
-	err := run([]string{"--max-records", "-5"}, strings.NewReader(""), &stdout, &stderr)
-	if err == nil || !strings.Contains(err.Error(), "non-negative") {
-		t.Fatalf("run(negative flag) error = %v, want non-negative rejection", err)
-	}
-}
-
-// TestTerminalObservedAsFailure proves a terminal claim observes as a
-// Monitor failure (never a success): failures increment and LastSuccessAt
-// stays unset.
-func TestTerminalObservedAsFailure(t *testing.T) {
-	t.Parallel()
-
-	var stdout, stderr bytes.Buffer
-	err := run([]string{"--input", "../../testdata/complete.json", "--max-records", "1"}, strings.NewReader(""), &stdout, &stderr)
-	if err != nil {
-		t.Fatalf("run() error = %v, want nil (terminal encodes, not errors)", err)
-	}
-	health := stderrHealth(t, stderr.String())
-	if health["consecutive_failures"] != 1.0 {
-		t.Fatalf("consecutive_failures = %v, want 1", health["consecutive_failures"])
-	}
-	// time.Time always marshals, so "unset" reads as the zero timestamp.
-	if health["last_success_at"] != "0001-01-01T00:00:00Z" {
-		t.Fatalf("last_success_at = %v after terminal, want zero", health["last_success_at"])
-	}
-	if health["last_error"] != "record-budget-exceeded" {
-		t.Fatalf("last_error = %v, want the terminal failure class", health["last_error"])
-	}
-}
-
-// TestUnchangedMovesNothing proves an unchanged outcome performs no Monitor
-// observation at all: no success timestamp advance and no digest write, so a
-// long-lived process never wipes its last good digest on a freshness check.
-func TestUnchangedMovesNothing(t *testing.T) {
-	t.Parallel()
-
-	var firstOut, firstErr bytes.Buffer
-	if err := run([]string{"--input", "../../testdata/complete.json"}, strings.NewReader(""), &firstOut, &firstErr); err != nil {
-		t.Fatalf("run() error = %v", err)
-	}
-	digest, ok := stderrHealth(t, firstErr.String())["last_digest"].(string)
-	if !ok || digest == "" {
-		t.Fatal("first run produced no digest to replay")
-	}
-	var secondOut, secondErr bytes.Buffer
-	if err := run([]string{"--input", "../../testdata/complete.json", "--previous-digest", digest}, strings.NewReader(""), &secondOut, &secondErr); err != nil {
-		t.Fatalf("run() error = %v", err)
-	}
-	secondHealth := stderrHealth(t, secondErr.String())
-	if secondHealth["last_success_at"] != "0001-01-01T00:00:00Z" {
-		t.Fatalf("unchanged run advanced last_success_at: %v", secondHealth)
-	}
-	if failures, ok := secondHealth["consecutive_failures"]; ok && failures != 0.0 {
-		t.Fatalf("unchanged run recorded failures: %v", secondHealth)
-	}
-}
-
-// TestWrongTypedIntermediateNodeFailsClosed proves a present-but-wrong-typed
-// config node errors instead of silently selecting defaults.
-func TestWrongTypedIntermediateNodeFailsClosed(t *testing.T) {
-	t.Parallel()
-
-	if _, _, err := nestedOptionalString(map[string]any{"source": 42.0}, "source", "sourceURI"); err == nil {
-		t.Fatal("wrong-typed intermediate error = nil, want failure")
-	}
-	if _, _, err := nestedOptionalNumber(map[string]any{"limits": "many"}, "limits", "maxRecordsPerClaim"); err == nil {
-		t.Fatal("wrong-typed limits error = nil, want failure")
-	}
-}
-
-func stderrHealth(t *testing.T, stderr string) map[string]any {
+// fakeJira serves a one-issue site over real HTTP.
+func fakeJira(t *testing.T) *httptest.Server {
 	t.Helper()
-	const prefix = "collector health: "
-	index := strings.LastIndex(stderr, prefix)
-	if index < 0 {
-		t.Fatalf("stderr missing health snapshot: %q", stderr)
-	}
-	var envelope map[string]any
-	if err := json.Unmarshal([]byte(strings.TrimSpace(stderr[index+len(prefix):])), &envelope); err != nil {
-		t.Fatalf("json.Unmarshal(health) error = %v", err)
-	}
-	health, ok := envelope["health"].(map[string]any)
-	if !ok {
-		t.Fatalf("health envelope shape wrong: %v", envelope)
-	}
-	return health
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Header.Get("Authorization") == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		switch {
+		case r.URL.Path == "/rest/api/3/search/jql":
+			_, _ = io.WriteString(w, `{"issues":[{"id":"10001","key":"ESHU-1","fields":{"summary":"private","status":{"id":"3","name":"In Progress"},"project":{"id":"10000","key":"ESHU"}}}],"isLast":true}`)
+		case strings.HasSuffix(r.URL.Path, "/changelog"):
+			_, _ = io.WriteString(w, `{"values":[{"id":"1","items":[{"field":"status","fromString":"To Do","toString":"In Progress"}]}]}`)
+		case strings.HasSuffix(r.URL.Path, "/remotelink"):
+			_, _ = io.WriteString(w, `[]`)
+		case r.URL.Path == "/rest/api/3/issuetype/project":
+			_, _ = io.WriteString(w, `[]`)
+		default:
+			_, _ = io.WriteString(w, `{"values":[],"isLast":true}`)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
 }
 
-// TestNestedLimitsConsumesConfigBlock proves the limits block from
-// config.example.yaml reaches CollectOptions: absent selects defaults,
-// partial overrides per field, malformed fails closed.
-func TestNestedLimitsConsumesConfigBlock(t *testing.T) {
-	t.Parallel()
-
-	deflated, err := nestedLimits(map[string]any{})
-	if err != nil {
-		t.Fatalf("nestedLimits(empty) error = %v", err)
-	}
-	if deflated != collector.DefaultResourceUse() {
-		t.Fatalf("nestedLimits(empty) = %+v, want defaults", deflated)
-	}
-	partial, err := nestedLimits(map[string]any{
-		"limits": map[string]any{"maxRecordsPerClaim": 7.0},
+func requestFor(t *testing.T, baseURL string) string {
+	t.Helper()
+	raw, err := json.Marshal(collector.Request{
+		ProtocolVersion: sdk.ProtocolVersionV1Alpha1, Claim: claim(), Contract: collector.Contract(),
+		Config: map[string]any{
+			"site_id": "fixture.invalid", "base_url": baseURL, "token_env": "JIRA_TOKEN", "email_env": "JIRA_EMAIL", "jql": "project = ESHU",
+		},
 	})
 	if err != nil {
-		t.Fatalf("nestedLimits(partial) error = %v", err)
+		t.Fatal(err)
 	}
-	if partial.MaxRecordsPerClaim != 7 || partial.MaxPayloadBytes != collector.DefaultResourceUse().MaxPayloadBytes {
-		t.Fatalf("nestedLimits(partial) = %+v, want override + defaults", partial)
-	}
-	if _, err := nestedLimits(map[string]any{
-		"limits": map[string]any{"maxRecordsPerClaim": "many"},
-	}); err == nil {
-		t.Fatal("nestedLimits(malformed) error = nil, want failure")
+	return string(raw)
+}
+
+func getenv(key string) string {
+	return map[string]string{"JIRA_TOKEN": testToken, "JIRA_EMAIL": "bot@fixture.invalid"}[key]
+}
+
+func TestRunClaimWritesOneValidResultToStdout(t *testing.T) {
+	t.Parallel()
+
+	server := fakeJira(t)
+	for _, args := range [][]string{nil, {"--sdk-stdio"}} {
+		var stdout, stderr bytes.Buffer
+		err := run(context.Background(), args, strings.NewReader(requestFor(t, server.URL)), &stdout, &stderr, getenv)
+		if err != nil {
+			t.Fatalf("run(%v) error = %v", args, err)
+		}
+		decoder := json.NewDecoder(&stdout)
+		decoder.DisallowUnknownFields()
+		var result sdk.Result
+		if err := decoder.Decode(&result); err != nil {
+			t.Fatalf("stdout is not one SDK result: %v", err)
+		}
+		if decoder.More() {
+			t.Fatal("stdout carries more than one JSON value")
+		}
+		if result.State != sdk.ResultComplete || len(result.Facts) != 2 {
+			t.Fatalf("State=%q facts=%d, want complete with 2 (one record, one transition)", result.State, len(result.Facts))
+		}
+		if _, err := sdk.NewValidator(collector.Contract()).ValidateResult(result); err != nil {
+			t.Fatalf("ValidateResult() error = %v", err)
+		}
+		for _, text := range []string{stdout.String(), stderr.String()} {
+			if strings.Contains(text, testToken) || strings.Contains(text, "bot@fixture.invalid") {
+				t.Fatalf("output leaks a credential: %s", text)
+			}
+		}
+		if lines := strings.Count(strings.TrimSpace(stderr.String()), "\n"); lines != 0 {
+			t.Fatalf("stderr = %q, want exactly one log line", stderr.String())
+		}
 	}
 }
 
-// TestRunWithTimeoutFailsSlowWork proves the shared wall-time runner fails
-// a collection that outruns ClaimTimeoutSeconds instead of waiting
-// unbounded. Both entry modes (local flags and SDK stdio) run through it,
-// so one mechanism test covers the bound behind both.
-func TestRunWithTimeoutFailsSlowWork(t *testing.T) {
+func TestRunClaimReportsConfigFailureAsTerminalResultNotCrash(t *testing.T) {
 	t.Parallel()
 
-	release := make(chan struct{})
-	defer close(release)
-	bounds := collector.DefaultResourceUse()
-	bounds.ClaimTimeoutSeconds = 1
-	_, err := runWithTimeout(func() (sdk.Result, error) {
-		<-release
-		return sdk.Result{}, nil
-	}, bounds)
-	if err == nil || !strings.Contains(err.Error(), "wall-time bound of 1 seconds exceeded") {
-		t.Fatalf("runWithTimeout(slow) error = %v, want wall-time bound failure", err)
-	}
-}
-
-// TestStdioPathCollectsRequest proves the --sdk-stdio path still collects
-// after the parse/collect split and reports the request's limits: a host
-// request against the complete fixture emits a complete result, and the
-// request's custom claim timeout reaches the health snapshot.
-func TestStdioPathCollectsRequest(t *testing.T) {
-	t.Parallel()
-
-	request := sdkRequest{
-		ProtocolVersion: sdk.ProtocolVersionV1Alpha1,
-		Claim:           sdk.Claim{Scope: sdk.Scope{ID: "component:jira-primary", Kind: "component"}},
-		Config: map[string]any{
-			"source": map[string]any{"input": "../../testdata/complete.json"},
-			"limits": map[string]any{"claimTimeoutSeconds": 60.0},
-		},
-	}
-	var stdin bytes.Buffer
-	if err := json.NewEncoder(&stdin).Encode(request); err != nil {
-		t.Fatalf("json.Encode(request) error = %v", err)
-	}
 	var stdout, stderr bytes.Buffer
-	if err := run([]string{"--sdk-stdio"}, &stdin, &stdout, &stderr); err != nil {
-		t.Fatalf("run(--sdk-stdio) error = %v", err)
+	err := run(context.Background(), nil, strings.NewReader(requestFor(t, "http://127.0.0.1:1")), &stdout, &stderr, func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("run() error = %v; a config failure is a bounded terminal result", err)
 	}
 	var result sdk.Result
 	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
-		t.Fatalf("json.Unmarshal(result) error = %v", err)
+		t.Fatal(err)
 	}
-	if result.State != sdk.ResultComplete {
-		t.Fatalf("State = %q, want complete for the stdio fixture run", result.State)
+	if result.State != sdk.ResultTerminal || result.Statuses[0].FailureClass != collector.FailureInvalidConfig {
+		t.Fatalf("result = %+v", result)
 	}
-	if !strings.Contains(stderr.String(), `"claim_timeout_seconds":60`) {
-		t.Fatalf("health snapshot missing the request timeout: %q", stderr.String())
+}
+
+func TestRunClaimRejectsBadInvocation(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		args  []string
+		stdin string
+	}{
+		"empty stdin":      {nil, ""},
+		"garbage stdin":    {nil, "{nope"},
+		"extra argument":   {[]string{"serve"}, "{}"},
+		"unknown flag":     {[]string{"--nope"}, "{}"},
+		"wrong protocol":   {nil, `{"protocol_version":"x"}`},
+		"unknown seed arg": {[]string{"seed", "extra"}, ""},
+		"seed no dest":     {[]string{"seed"}, ""},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var stdout, stderr bytes.Buffer
+			if err := run(context.Background(), tc.args, strings.NewReader(tc.stdin), &stdout, &stderr, getenv); err == nil {
+				t.Fatal("run() error = nil, want failure")
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("a rejected invocation wrote %q to stdout", stdout.String())
+			}
+		})
 	}
 }
