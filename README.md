@@ -44,8 +44,15 @@ target: `site_id`, `base_url`, `email_env`, `token_env`, `jql` or `jql_env`,
 `token_env` and `email_env` name environment variables the worker exports.
 Secret values never appear in facts, source URIs, logs, or statuses.
 
-`allow_empty_successor` is rejected: the published SDK result type cannot yet
-carry the trusted-deletion attestation the in-tree collector uses.
+`allow_empty_successor` (default false, unchanged) is parsed. When true the claim
+fails closed with a terminal result whose status class is `unsupported_option`.
+The in-tree collector uses it to attest that an empty or sharply shrunken
+successor generation is legitimate; sending that attestation needs
+`Generation.TrustedDeletion`, which landed in eshu-hq/eshu after
+`sdk/go/collector` v0.2.0, and this repository does not hand-marshal
+unpublished wire fields. Removal condition: pin a collector SDK release that
+carries `TrustedDeletion`, then replace the rejection in `config.go` with the
+field.
 
 A site with a large issue window returns more than the host's default 4 MiB
 stdout cap. Raise `process.stdout_limit_bytes` and `limits.maxResultBytes`

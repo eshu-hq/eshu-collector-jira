@@ -223,7 +223,6 @@ func TestHandleConfigErrorsAreTerminalAndSecretFree(t *testing.T) {
 		"credentialed host": func(_ *replayScenario, r *Request) {
 			r.Config["base_url"] = "http://user:" + testToken + "@jira.fixture.invalid"
 		},
-		"trusted deletion": func(_ *replayScenario, r *Request) { r.Config["allow_empty_successor"] = true },
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -242,6 +241,36 @@ func TestHandleConfigErrorsAreTerminalAndSecretFree(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestHandleFailsClosedOnTrustedDeletionAndAcceptsExplicitFalse(t *testing.T) {
+	t.Parallel()
+
+	result, transport, logs := runScenario(t, "basic", func(_ *replayScenario, r *Request) { r.Config["allow_empty_successor"] = true })
+	if result.State != sdk.ResultTerminal || len(result.Facts) != 0 || len(result.Statuses) != 1 ||
+		result.Statuses[0].FailureClass != FailureUnsupportedOption {
+		t.Fatalf("State=%q statuses=%+v, want terminal %s", result.State, result.Statuses, FailureUnsupportedOption)
+	}
+	mustValidate(t, result)
+	if len(transport.sortedCalls()) != 0 {
+		t.Fatalf("an unsupported option must not reach Jira: %v", transport.sortedCalls())
+	}
+	var line logLine
+	if err := json.Unmarshal([]byte(strings.TrimSpace(logs)), &line); err != nil {
+		t.Fatal(err)
+	}
+	if line.FailureClass != FailureUnsupportedOption || !strings.Contains(line.Detail, "allow_empty_successor") {
+		t.Fatalf("log line = %+v", line)
+	}
+
+	// The default and an explicit false are unchanged and never set the
+	// attestation (the SDK type has no field for it).
+	for _, explicit := range []bool{false} {
+		ok, _, _ := runScenario(t, "basic", func(_ *replayScenario, r *Request) { r.Config["allow_empty_successor"] = explicit })
+		if ok.State != sdk.ResultComplete {
+			t.Fatalf("explicit false: State = %q, want complete", ok.State)
+		}
 	}
 }
 

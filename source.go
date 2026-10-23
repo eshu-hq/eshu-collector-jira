@@ -70,7 +70,7 @@ func (h Handler) Handle(ctx context.Context, request Request) sdk.Result {
 		// only, so it is safe for the operator log and the only place the
 		// reason for a rejected config is visible.
 		h.logConfigFailure(claim, err)
-		return budgetResult(claim, started, FailureInvalidConfig)
+		return budgetResult(claim, started, configFailureClass(err))
 	}
 	runCtx, cancel, ok := claimContext(ctx, claim, started, settings.Limits)
 	defer cancel()
@@ -230,6 +230,15 @@ func (h Handler) logFailure(claim sdk.Claim, class string, operation string, sta
 	})
 }
 
+// configFailureClass returns the bounded status class for a rejected config.
+func configFailureClass(err error) string {
+	var configErr ConfigError
+	if errors.As(err, &configErr) {
+		return configErr.FailureClass()
+	}
+	return FailureInvalidConfig
+}
+
 // logConfigFailure records a rejected configuration with its bounded reason.
 // Only a ConfigError or a client-construction error that never quotes its
 // input carries a detail; anything else logs the class alone.
@@ -241,6 +250,7 @@ func (h Handler) logConfigFailure(claim sdk.Claim, err error) {
 	var configErr ConfigError
 	if errors.As(err, &configErr) {
 		line.Detail = configErr.Error()
+		line.FailureClass = configErr.FailureClass()
 	}
 	h.emit(line)
 }

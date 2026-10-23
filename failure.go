@@ -15,6 +15,9 @@ import (
 const (
 	// FailureInvalidConfig marks an activation config the collector cannot run.
 	FailureInvalidConfig = "invalid_config"
+	// FailureUnsupportedOption marks a recognized config option the pinned SDK
+	// cannot honor (allow_empty_successor: true).
+	FailureUnsupportedOption = "unsupported_option"
 	// FailureInvalidEvidence marks provider data that cannot become a fact.
 	FailureInvalidEvidence = "invalid_evidence"
 	// FailureClaimDeadline marks a claim whose lease deadline has passed.

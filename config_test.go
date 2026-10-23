@@ -190,3 +190,26 @@ func TestResourceUseDefaultsFillOnlyTheGaps(t *testing.T) {
 		t.Fatal("zero ResourceUse must resolve to defaults, never to unbounded")
 	}
 }
+
+func TestAllowEmptySuccessorFailsClosedWithItsOwnClass(t *testing.T) {
+	t.Parallel()
+
+	config := validConfig()
+	config["allow_empty_successor"] = true
+	_, err := ParseSettings(config, "scope", testEnv())
+	var configErr ConfigError
+	if !errors.As(err, &configErr) || configErr.FailureClass() != FailureUnsupportedOption {
+		t.Fatalf("error = %v, want a ConfigError with class %s", err, FailureUnsupportedOption)
+	}
+	config["allow_empty_successor"] = false
+	if _, err := ParseSettings(config, "scope", testEnv()); err != nil {
+		t.Fatalf("explicit false error = %v, want accepted (the default)", err)
+	}
+	delete(config, "allow_empty_successor")
+	if _, err := ParseSettings(config, "scope", testEnv()); err != nil {
+		t.Fatalf("absent option error = %v", err)
+	}
+	if (ConfigError{}).FailureClass() != FailureInvalidConfig {
+		t.Fatal("an ordinary config error must keep the invalid_config class")
+	}
+}

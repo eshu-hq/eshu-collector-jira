@@ -17,11 +17,22 @@ const defaultUpdatedLookback = 24 * time.Hour
 // ConfigError reports an invalid activation config. Its text names config keys
 // and environment variable names only; it never carries a resolved secret.
 type ConfigError struct {
-	msg string
+	msg   string
+	class string
 }
 
 // Error returns the bounded configuration failure text.
 func (e ConfigError) Error() string { return e.msg }
+
+// FailureClass returns the bounded status class for this rejection:
+// unsupported_option for a recognized option this build cannot honor,
+// invalid_config for everything else.
+func (e ConfigError) FailureClass() string {
+	if e.class != "" {
+		return e.class
+	}
+	return FailureInvalidConfig
+}
 
 func configErrorf(format string, args ...any) error {
 	return ConfigError{msg: fmt.Sprintf(format, args...)}
@@ -102,7 +113,15 @@ func ParseSettings(raw map[string]any, claimScopeID string, getenv func(string) 
 		return Settings{}, configErrorf("decode jira collector config: %s", decodeReason(err))
 	}
 	if cfg.AllowEmptySuccessor {
-		return Settings{}, configErrorf("allow_empty_successor is not supported: the published SDK cannot carry the trusted-deletion attestation")
+		// Fail closed. Sending the attestation needs Generation.TrustedDeletion,
+		// which landed in eshu-hq/eshu after sdk/go/collector v0.2.0; this
+		// repository does not hand-marshal unpublished wire fields. Remove
+		// this branch when a collector SDK release carrying TrustedDeletion
+		// is the pinned version.
+		return Settings{}, ConfigError{
+			msg:   "allow_empty_successor is not supported: the pinned collector SDK cannot carry the trusted-deletion attestation",
+			class: FailureUnsupportedOption,
+		}
 	}
 	target, err := buildTarget(cfg, claimScopeID, getenv)
 	if err != nil {

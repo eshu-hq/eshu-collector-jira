@@ -108,7 +108,7 @@ freshness hint. These differ by design or are not comparable:
    `partial` (the host commits it like `complete` and records the state).
 4. **Trusted deletion.** `allow_empty_successor` cannot be honored: SDK
    v0.2.0's `Generation` has no `trusted_deletion` field. The config key is
-   rejected when true instead of silently ignored.
+   rejected when true (terminal `unsupported_option`) instead of silently ignored.
 5. **Response size cap.** Provider responses over 32 MiB fail; the in-tree
    helper reads without a bound.
 6. **Issues without an id or key** fail terminal (`invalid_evidence`) at
