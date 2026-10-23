@@ -15,9 +15,18 @@ import (
 	sdk "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
-// deadlineMargin is the time reserved before the claim lease deadline so the
-// collector can return a retryable result instead of being killed mid-write.
-const deadlineMargin = 2 * time.Second
+const (
+	// maxDeadlineMargin caps how long before the claim deadline the collector
+	// stops starting provider calls.
+	maxDeadlineMargin = 2 * time.Second
+	// deadlineMarginDivisor makes the margin 5% of the remaining claim time.
+	deadlineMarginDivisor = 20
+)
+
+// errClaimDeadline is the cancellation cause of a context that ended because
+// the claim lease deadline (less its margin) was reached. It tells that stop
+// apart from a host cancel and from the configured claim timeout.
+var errClaimDeadline = errors.New("claim lease deadline reached")
 
 // ClientFactory builds one Jira evidence client for a validated target.
 type ClientFactory func(TargetConfig) (EvidenceClient, error)
@@ -87,8 +96,22 @@ func (h Handler) Handle(ctx context.Context, request Request) sdk.Result {
 	}
 	window := CollectionWindow{Since: started.Add(-settings.Target.UpdatedLookback), Until: started}
 	collected, err := client.CollectWorkItemEvidence(runCtx, settings.Target, window)
-	if err != nil {
-		failure := classifyFailure(err)
+	if err != nil || stoppedAtClaimDeadline(runCtx) {
+		failure := Failure{}
+		if err != nil {
+			failure = classifyFailure(err)
+		}
+		if stoppedAtClaimDeadline(runCtx) && !failure.Terminal {
+			// The lease deadline ended the read. Whatever was collected so far
+			// is incomplete, so it is dropped: the claim ends retryable with no
+			// facts and the next attempt starts again. A deadline stop is
+			// never partial. A terminal provider failure that landed just
+			// before the stop keeps its own class.
+			failure = Failure{
+				Class: FailureClaimDeadline, Operation: failure.Operation,
+				HTTPStatus: failure.HTTPStatus, Stage: failure.Stage, Stats: failure.Stats,
+			}
+		}
 		latency := h.now().Sub(started)
 		h.logFailure(claim, failure.Class, failure.Operation, failure.HTTPStatus, failure.Stats)
 		return failureResult(claim, started, failure, latency)
@@ -97,11 +120,32 @@ func (h Handler) Handle(ctx context.Context, request Request) sdk.Result {
 	return h.completeResult(claim, settings, window, collected, started)
 }
 
-// claimContext bounds the collection by the claim lease deadline (less a
-// margin) and the configured claim timeout. It works in durations measured on
-// the handler clock and applies them with context.WithTimeout, so an injected
-// clock never skews the real-time bound. ok is false when the lease is
-// already spent.
+// clampedDeadlineTimeout returns how long the collector may work on a claim:
+// the time left until deadline minus a safety margin of min(2s, 5% of the time
+// left). The host sets the claim deadline to the initial lease expiry (the
+// worker's default lease TTL is 60s, ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL;
+// heartbeats do not extend it) and kills the process there, so the collector
+// stops starting provider calls a little earlier and ends with a retryable
+// result of its own instead of being killed mid-request. It reports false when
+// there is no deadline or none left; claimContext handles the latter.
+func clampedDeadlineTimeout(now, deadline time.Time) (time.Duration, bool) {
+	if deadline.IsZero() {
+		return 0, false
+	}
+	remaining := deadline.Sub(now)
+	if remaining <= 0 {
+		return 0, false
+	}
+	margin := min(maxDeadlineMargin, remaining/deadlineMarginDivisor)
+	return remaining - margin, true
+}
+
+// claimContext bounds the collection by the claim lease deadline (less its
+// margin) and the configured claim timeout, whichever is shorter. It works in
+// durations measured on the handler clock and applies them with
+// context.WithTimeoutCause, so an injected clock never skews the real-time
+// bound. A context that ends at the lease bound carries errClaimDeadline as
+// its cause. ok is false when the lease is already spent.
 func claimContext(
 	ctx context.Context,
 	claim sdk.Claim,
@@ -109,15 +153,24 @@ func claimContext(
 	limits ResourceUse,
 ) (context.Context, context.CancelFunc, bool) {
 	budget := time.Duration(limits.ClaimTimeoutSeconds) * time.Second
+	var cause error
 	if !claim.Deadline.IsZero() {
-		remaining := claim.Deadline.UTC().Sub(now) - deadlineMargin
-		if remaining <= 0 {
+		deadline := claim.Deadline.UTC()
+		if !deadline.After(now) {
 			return ctx, func() {}, false
 		}
-		budget = min(budget, remaining)
+		if timeout, bounded := clampedDeadlineTimeout(now, deadline); bounded && timeout <= budget {
+			budget, cause = timeout, errClaimDeadline
+		}
 	}
-	runCtx, cancel := context.WithTimeout(ctx, budget)
+	runCtx, cancel := context.WithTimeoutCause(ctx, budget, cause)
 	return runCtx, cancel, true
+}
+
+// stoppedAtClaimDeadline reports whether ctx ended because the claim lease
+// deadline was reached, as opposed to a host cancel or the claim timeout.
+func stoppedAtClaimDeadline(ctx context.Context) bool {
+	return errors.Is(context.Cause(ctx), errClaimDeadline)
 }
 
 // windowStaleness reports one stale window when the collection window is

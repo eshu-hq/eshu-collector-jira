@@ -62,6 +62,26 @@ stdout cap. Raise `process.stdout_limit_bytes` and `limits.maxResultBytes`
 together; the collector fails terminal with `result_budget_exceeded` rather
 than letting the host drop an oversized result.
 
+## Claim time budget
+
+The host sets a claim's deadline to the **initial lease expiry** and kills the
+process there. Heartbeats do not extend it. The worker's default lease TTL is
+60 seconds (`ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL`), so one claim has at
+most that long to read the site unless the worker is configured for more. The
+reference deployment runs the worker lease TTL at 5 minutes (heartbeat 30
+seconds); a site with a large issue window needs at least that.
+
+The collector stops starting provider calls at the deadline minus
+`min(2s, 5% of the time left)` (a 60 s lease gives 58 s, a 10 s lease 9.5 s, a
+1 s lease 950 ms), cancels the call in flight, and returns a `retryable` result
+with failure class `claim_deadline_exceeded` and `retry_after_seconds`. The
+result carries no facts: a deadline stop is never `partial`, and facts read so
+far are dropped so an incomplete read cannot commit as a complete generation.
+The next attempt starts over, so a site that cannot finish inside the lease
+keeps failing with the same class until the lease TTL is raised. A missing
+deadline leaves only `limits.claimTimeoutSeconds` (default 300) as the bound; a
+deadline already passed fails at once without calling Jira.
+
 ## Operator signals
 
 What an operator can see for a claim today:

@@ -315,10 +315,10 @@ func TestHandleDeadlineAndCancellation(t *testing.T) {
 
 	t.Run("lease already spent", func(t *testing.T) {
 		t.Parallel()
-		for _, deadline := range []time.Time{testObservedAt().Add(-time.Minute), testObservedAt().Add(time.Second)} {
+		for _, deadline := range []time.Time{testObservedAt().Add(-time.Minute), testObservedAt()} {
 			result, transport, _ := runScenario(t, "basic", func(_ *replayScenario, r *Request) { r.Claim.Deadline = deadline })
 			if result.State != sdk.ResultRetryable || result.Statuses[0].FailureClass != FailureClaimDeadline || result.Statuses[0].RetryAfterSeconds < 1 {
-				t.Fatalf("deadline %s: result = %+v", deadline, result)
+				t.Fatalf("deadline %s: state=%q class=%q", deadline, result.State, result.Statuses[0].FailureClass)
 			}
 			if len(transport.sortedCalls()) != 0 {
 				t.Fatalf("an expired lease must not call Jira: %v", transport.sortedCalls())

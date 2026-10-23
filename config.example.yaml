@@ -48,4 +48,11 @@ config:
     maxRecordsPerClaim: 50000
     maxPayloadBytes: 1048576
     maxResultBytes: 50331648
+    # Wall-time bound for one claim. The host also kills the process at the
+    # claim deadline, which is the initial lease expiry
+    # (ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL, default 60s; heartbeats do not
+    # extend it). The collector stops starting provider calls at the deadline
+    # minus min(2s, 5% of the time left) and returns retryable
+    # claim_deadline_exceeded with no facts. The reference deployment runs the
+    # worker lease TTL at 5m (heartbeat 30s); a larger site needs at least that.
     claimTimeoutSeconds: 300

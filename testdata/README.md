@@ -122,6 +122,10 @@ freshness hint. These differ by design or are not comparable:
    not see that line. The in-tree fetch span and counters have no equivalent,
    and the manifest's `metricsPrefix` is declared but nothing emits it. See the
    README section "Operator signals" and eshu-hq/eshu#8908.
-9. **Retry guidance.** A retryable result must carry `retry_after_seconds`; a
+9. **Claim deadline.** The in-tree worker owned its lease; here the host
+   kills the process at the initial lease expiry. The handler stops starting
+   provider calls at the deadline minus min(2s, 5% of the time left) and ends
+   `retryable` with `claim_deadline_exceeded` and no facts (never `partial`).
+10. **Retry guidance.** A retryable result must carry `retry_after_seconds`; a
    missing provider `Retry-After` becomes 60 s for rate limits and 30 s
    otherwise, and provider values are capped at 24 h.
