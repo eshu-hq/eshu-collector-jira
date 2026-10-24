@@ -179,15 +179,56 @@ func TestAResultFinishedAfterTheDeadlineStopIsDiscarded(t *testing.T) {
 
 // TestTheClaimTimeoutIsNotTheLeaseDeadline keeps the two bounds apart: a claim
 // timeout shorter than the lease ends as an ordinary retryable failure, not as
-// claim_deadline_exceeded.
+// claim_deadline_exceeded. The handler runs in a goroutine with a short wait so
+// a regression that ignores the claim timeout fails in seconds instead of
+// hanging until the test binary times out.
 func TestTheClaimTimeoutIsNotTheLeaseDeadline(t *testing.T) {
 	t.Parallel()
 
 	handler, _, request := probedHandler(t, 1)
 	request.Config["limits"] = map[string]any{"claimTimeoutSeconds": 1}
 	request.Claim.Deadline = testObservedAt().Add(time.Hour)
-	result := handler.Handle(t.Context(), request)
+	done := make(chan sdk.Result, 1)
+	started := time.Now()
+	go func() { done <- handler.Handle(t.Context(), request) }()
+	var result sdk.Result
+	select {
+	case result = <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the claim did not stop after its 1 s claim timeout")
+	}
+	if elapsed := time.Since(started); elapsed > 5*time.Second {
+		t.Fatalf("the claim took %s with a 1 s claim timeout", elapsed)
+	}
 	if result.State != sdk.ResultRetryable || result.Statuses[0].FailureClass != FailureRetryable {
 		t.Fatalf("State = %q class = %q, want retryable %s", result.State, result.Statuses[0].FailureClass, FailureRetryable)
 	}
+}
+
+// terminalAtDeadlineClient waits for the claim context to end and then reports
+// a terminal provider failure, as a response that landed just before the
+// deadline stop would.
+type terminalAtDeadlineClient struct{}
+
+func (terminalAtDeadlineClient) CollectWorkItemEvidence(ctx context.Context, _ TargetConfig, _ CollectionWindow) (CollectionResult, error) {
+	<-ctx.Done()
+	return CollectionResult{}, InvalidEvidenceError{Reason: "issue without a key"}
+}
+
+// TestATerminalFailureKeepsItsClassAtTheDeadline pins the documented rule: a
+// terminal provider failure that lands as the deadline stop fires stays
+// terminal with its own class. Retrying cannot help, so it must not be
+// rewritten to the retryable claim_deadline_exceeded.
+func TestATerminalFailureKeepsItsClassAtTheDeadline(t *testing.T) {
+	t.Parallel()
+
+	handler, _, request := probedHandler(t, 1<<20)
+	handler.NewClient = func(TargetConfig) (EvidenceClient, error) { return terminalAtDeadlineClient{}, nil }
+	request.Claim.Deadline = testObservedAt().Add(400 * time.Millisecond)
+	result := handler.Handle(t.Context(), request)
+	if result.State != sdk.ResultTerminal || len(result.Facts) != 0 ||
+		len(result.Statuses) != 1 || result.Statuses[0].FailureClass != FailureInvalidEvidence {
+		t.Fatalf("State = %q statuses = %+v, want terminal %s", result.State, result.Statuses, FailureInvalidEvidence)
+	}
+	mustValidate(t, result)
 }
