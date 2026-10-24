@@ -180,12 +180,12 @@ published payload schemas the manifest references. `go test
 -update-conformance-fixtures -run TestConformanceFixturesAreCurrent .`
 rewrites them after a deliberate output change.
 
-`eshu component inspect`, `verify`, and `conform` load the manifest without
-producer grants, so they reject any manifest that declares core-owned kinds
-(`fact kind "work_item.record" is core-owned by Eshu ...`). `install` and
-`enable` are grant-aware and pass once the nine grants are recorded. Until core
-makes the other three grant-aware, conformance for this manifest is the Go
-harness above.
+`eshu component inspect`, `verify`, and `conform` read the producer grants in
+the component home (`--component-home`) since eshu-hq/eshu#8952, so they judge
+this manifest once the nine grants are recorded with `scripts/record-grants.sh`.
+Without the grants they reject it (`fact kind "work_item.record" is core-owned
+by Eshu ...`), as `install` and `enable` do. The Go harness above is the proof
+that runs in this repository.
 
 The manifest omits `consumerContracts.reducer.phases` on purpose. The only
 phase the SDK harness accepts for an optional component is
