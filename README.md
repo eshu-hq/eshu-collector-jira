@@ -77,8 +77,8 @@ The collector stops starting provider calls at the deadline minus
 `min(2s, 5% of the time left)` (a 60 s lease gives 58 s, a 10 s lease 9.5 s, a
 1 s lease 950 ms), cancels the call in flight, and returns a `retryable` result
 with failure class `claim_deadline_exceeded`. The result sets
-`retry_after_seconds`, but the worker does not honor it yet (see "Operator
-signals"), so the collector's retry guidance has no effect. The
+`retry_after_seconds`, which the worker honors on eshu `main` since
+eshu-hq/eshu#9008 (see "Operator signals"). The
 result carries no facts: a deadline stop is never `partial`, and facts read so
 far are dropped so an incomplete read cannot commit as a complete generation.
 The next attempt starts over, so a site that cannot finish inside the lease
@@ -88,16 +88,21 @@ deadline already passed fails at once without calling Jira.
 
 ## Operator signals
 
-Today the extension host passes one thing from a claim's result to the work
-item: the **failure class** (`rate_limited`, `invalid_config`,
-`unsupported_option`, `claim_deadline_exceeded`, ...). The worker does not set
-a status recorder, so everything else in the result's status row is dropped:
+The extension host passes the **failure class** (`rate_limited`,
+`invalid_config`, `unsupported_option`, `claim_deadline_exceeded`, ...) from a
+claim's result to the work item. On eshu `main` since eshu-hq/eshu#9008 (a
+release carries it once one is cut after that change), the worker also sets a
+status recorder: it records every claim result as six
+`eshu_dp_component_extension_*` metrics and one `component extension result`
+log line, and it honors `retry_after_seconds`:
 
-- **Dropped: source latency and fact count.** The collector fills them in, but
-  no dashboard or work item shows them.
-- **Dropped: `retry_after_seconds`.** The collector sends it on every retryable
-  result, but the worker does not honor it yet, so a retryable result gets no
-  retry delay from the collector's guidance.
+- **Recorded: source latency and fact count.** The collector fills them in, and
+  the host records them in the metrics above.
+- **Honored: `retry_after_seconds`.** The collector sends it on every retryable
+  result. The worker retries after the larger of the poll interval and that
+  request, capped at one hour, until the attempt budget is spent. The
+  `eshu_dp_component_extension_retry_after_seconds` gauge and the log line hold
+  the request, not the applied delay.
 - **Dropped: the stderr log line.** The collector writes one JSON line per
   claim to stderr: the config rejection reason, the failed operation
   (`search_issues`, `read_changelog`, ...), the HTTP status, and collection
@@ -109,10 +114,9 @@ a status recorder, so everything else in the result's status row is dropped:
   `telemetry.metricsPrefix: eshu_dp_jira_collector_`, but nothing in this
   repository emits a metric under it.
 
-eshu-hq/eshu#8908 tracks recording status rows and honoring the retry delay in
-the worker. Until it lands, a rejected config shows up only as the failure
-class on the work item; find the cause by running the collector with the
-activation's config and a recorded request.
+The config rejection reason stays in the dropped stderr line, so find the cause
+of a rejected config by running the collector with the activation's config and
+a recorded request. The host records the failure class, not the reason.
 
 ## Image and seeding
 
@@ -141,26 +145,33 @@ repository placeholder digest is written unchanged.
 ## Cutover identity
 
 Replacing the in-tree Jira collector with this one must not re-key a single
-fact. These activation values have to equal what the in-tree collector uses for
-the same site:
+fact. Three activation values have to equal what the in-tree collector uses for
+the same site. The activation instance id must not:
 
-| Activation value | Must equal the in-tree value | If it differs |
+| Activation value | Rule | If the rule is broken |
 | --- | --- | --- |
-| `host.scope.id` | the in-tree target's `scope_id` (the `targets[].scope_id` in the in-tree collector instance configuration) | every stable key and `scope_id` changes: the site is ingested as a new scope |
-| `host.scope.kind` | `jira_site` | the scope no longer matches the in-tree scope kind |
-| `host.sourceSystem` | the in-tree source system, `jira` | `source_ref` and `source_system` change on every fact |
-| activation instance id (`--instance`) | the in-tree collector instance id | `collector_instance_id` in the `work_item.record` payload changes |
+| `host.scope.id` | equals the in-tree target's `scope_id` (the `targets[].scope_id` in the in-tree collector instance configuration) | every stable key and `scope_id` changes: the site is ingested as a new scope |
+| `host.scope.kind` | equals `jira_site` | the scope no longer matches the in-tree scope kind |
+| `host.sourceSystem` | equals the in-tree source system, `jira` | `source_ref` and `source_system` change on every fact |
+| activation instance id (`--instance`) | is a new id that differs from the in-tree collector instance id | the coordinator reports a `duplicate collector instance` configuration error and does not start, because it refuses two collector instances with one id |
+
+Because the instance id is new, the `collector_instance_id` field in the
+`work_item.record` payload changes at cutover. Stable keys do not change: they
+are built from the provider, `scope_id`, and the issue or metadata ids, not from
+the instance id. The freshness hint covers the payload, so the first claim after
+cutover stores a fresh generation.
 
 The collector copies `scope_id`, `collector_instance_id`, and `source_system`
 from the claim the host sends; it has no setting of its own for them. A
 `scope_id` in `config` is only a cross-check and is rejected when it differs
 from `host.scope.id`.
 
-Before enabling an activation, read the three values from the live in-tree
-collector instance configuration and write them into the activation. Do not
-copy the placeholders in `config.example.yaml` (`jira:site:example`,
-`jira-primary`). Run only one of the two collectors per site: with the same
-scope and instance id they would write the same stable keys.
+Before enabling an activation, read the scope id and the source system from the
+live in-tree collector instance configuration and write them into the
+activation. Do not copy the placeholder scope id in `config.example.yaml`
+(`jira:site:example`). Pick an instance id that no in-tree instance uses. Run
+only one of the two collectors per site: with the same scope id they would write
+the same stable keys.
 
 ## Producer grants
 

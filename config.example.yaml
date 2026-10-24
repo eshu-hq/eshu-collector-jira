@@ -5,14 +5,17 @@
 # facts, in logs, or in statuses.
 #
 # Cutover identity. When this activation replaces the in-tree Jira collector,
-# these values must equal the in-tree ones, or every stable fact key and the
-# payload's collector_instance_id change:
+# these values must equal the in-tree ones, or every stable fact key changes:
 #   host.scope.id        = the in-tree target's scope_id
 #   host.scope.kind      = jira_site
 #   host.sourceSystem    = the in-tree source system (jira)
-#   activation instance id (--instance) = the in-tree collector instance id
-# The values below are placeholders. Read the real ones from the live in-tree
-# configuration; do not invent new ones.
+# The activation instance id (--instance) must be a NEW id, different from the
+# in-tree collector instance id: a duplicate collector instance id is a
+# coordinator configuration error, and the coordinator does not start while the
+# duplicate exists. Only the payload's collector_instance_id changes; stable
+# keys do not.
+# The values below are placeholders. Read the real scope id and source system
+# from the live in-tree configuration; do not invent new ones.
 host:
   # Source system recorded on every fact. Match the claim the coordinator plans.
   sourceSystem: jira
