@@ -138,14 +138,16 @@ func ParseSettings(raw map[string]any, claimScopeID string, getenv func(string) 
 }
 
 // decodeReason keeps a JSON decode failure to its reason without echoing
-// decoded values.
+// decoded values. An unknown key is reported without its name: the key comes
+// from the operator or the host and can be a pasted credential, and the
+// standard library's message would quote it.
 func decodeReason(err error) string {
 	var typeErr *json.UnmarshalTypeError
 	switch {
 	case errors.As(err, &typeErr):
 		return "field " + typeErr.Field + " has the wrong type"
 	case strings.HasPrefix(err.Error(), "json: unknown field"):
-		return strings.TrimPrefix(err.Error(), "json: ")
+		return "unknown field"
 	default:
 		return "malformed JSON"
 	}

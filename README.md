@@ -40,7 +40,9 @@ the collection window and every emitted fact.
 `config.example.yaml` is an activation config. The `config` map holds one Jira
 target: `site_id`, `base_url`, `email_env`, `token_env`, `jql` or `jql_env`,
 `issue_limit`, `updated_lookback`, `changelog_limit`, `remote_link_limit`,
-`metadata_limit`, and an optional `limits` block. Unknown keys fail closed.
+`metadata_limit`, and an optional `limits` block. Unknown keys fail closed:
+the rejection says `unknown field` and does not name the key (it can be a
+pasted credential), so compare the config with `config.example.yaml`.
 `token_env` and `email_env` name environment variables the worker exports.
 Secret values never appear in facts, source URIs, logs, or statuses. The three
 `*_env` keys must hold environment variable names (`^[A-Za-z_][A-Za-z0-9_]*$`,

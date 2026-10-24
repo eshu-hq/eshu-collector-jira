@@ -27,16 +27,17 @@ func TestEnvVarNamesAreValidatedBeforeUse(t *testing.T) {
 	t.Parallel()
 
 	for name, valid := range map[string]bool{
-		"JIRA_API_TOKEN":                        true,
-		"_x1":                                   true,
-		strings.Repeat("A", maxEnvNameLength):   true,
-		"":                                      false,
-		"1LEADING_DIGIT":                        false,
-		"HAS-DASH":                              false,
-		"HAS=EQUALS":                            false,
-		"HAS SPACE":                             false,
-		"line\nbreak":                           false,
-		strings.Repeat("A", maxEnvNameLength+1): false,
+		"JIRA_API_TOKEN": true,
+		"_x1":            true,
+		// Literal lengths, not maxEnvNameLength, so raising the cap fails here.
+		strings.Repeat("A", 128): true,
+		strings.Repeat("A", 129): false,
+		"":                       false,
+		"1LEADING_DIGIT":         false,
+		"HAS-DASH":               false,
+		"HAS=EQUALS":             false,
+		"HAS SPACE":              false,
+		"line\nbreak":            false,
 	} {
 		if got := validEnvName(name); got != valid {
 			t.Fatalf("validEnvName(%q) = %t, want %t", name, got, valid)
@@ -114,5 +115,60 @@ func TestHandleNeverEchoesAPastedSecretToResultOrLog(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// tokenShapedKey is a config key an operator could paste a credential into by
+// mistake. An unknown key is rejected, and the rejection must not quote it.
+const tokenShapedKey = "ghp_SUPERSECRETKEYNAME123abcdef"
+
+func TestUnknownConfigKeyIsNeverEchoed(t *testing.T) {
+	t.Parallel()
+
+	for name, mutate := range map[string]func(map[string]any){
+		"top level": func(c map[string]any) { c[tokenShapedKey] = 1 },
+		"in limits": func(c map[string]any) { c["limits"] = map[string]any{tokenShapedKey: 1} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			config := validConfig()
+			mutate(config)
+			_, err := ParseSettings(config, "scope", testEnv())
+			if err == nil {
+				t.Fatal("ParseSettings() error = nil, want rejection")
+			}
+			if strings.Contains(err.Error(), tokenShapedKey) {
+				t.Fatalf("error text echoes the unknown key: %v", err)
+			}
+			if !strings.Contains(err.Error(), "unknown field") {
+				t.Fatalf("error = %v, want it to say the field is unknown", err)
+			}
+
+			result, _, logs := runScenario(t, "basic", func(_ *replayScenario, r *Request) {
+				mutate(r.Config)
+			})
+			encoded, marshalErr := json.Marshal(result)
+			if marshalErr != nil {
+				t.Fatal(marshalErr)
+			}
+			for _, text := range []string{string(encoded), logs} {
+				if strings.Contains(text, tokenShapedKey) {
+					t.Fatalf("output echoes the unknown key: %s", text)
+				}
+			}
+		})
+	}
+}
+
+func TestParseRequestNeverEchoesAnUnknownField(t *testing.T) {
+	t.Parallel()
+
+	input := requestJSON(t, func(d map[string]any) { d[tokenShapedKey] = true })
+	_, err := ParseRequest(strings.NewReader(input))
+	if err == nil {
+		t.Fatal("ParseRequest() error = nil, want rejection")
+	}
+	if strings.Contains(err.Error(), tokenShapedKey) {
+		t.Fatalf("error text echoes the unknown field: %v", err)
 	}
 }
