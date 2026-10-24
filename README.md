@@ -145,26 +145,33 @@ repository placeholder digest is written unchanged.
 ## Cutover identity
 
 Replacing the in-tree Jira collector with this one must not re-key a single
-fact. These activation values have to equal what the in-tree collector uses for
-the same site:
+fact. Three activation values have to equal what the in-tree collector uses for
+the same site. The activation instance id must not:
 
-| Activation value | Must equal the in-tree value | If it differs |
+| Activation value | Rule | If the rule is broken |
 | --- | --- | --- |
-| `host.scope.id` | the in-tree target's `scope_id` (the `targets[].scope_id` in the in-tree collector instance configuration) | every stable key and `scope_id` changes: the site is ingested as a new scope |
-| `host.scope.kind` | `jira_site` | the scope no longer matches the in-tree scope kind |
-| `host.sourceSystem` | the in-tree source system, `jira` | `source_ref` and `source_system` change on every fact |
-| activation instance id (`--instance`) | the in-tree collector instance id | `collector_instance_id` in the `work_item.record` payload changes |
+| `host.scope.id` | equals the in-tree target's `scope_id` (the `targets[].scope_id` in the in-tree collector instance configuration) | every stable key and `scope_id` changes: the site is ingested as a new scope |
+| `host.scope.kind` | equals `jira_site` | the scope no longer matches the in-tree scope kind |
+| `host.sourceSystem` | equals the in-tree source system, `jira` | `source_ref` and `source_system` change on every fact |
+| activation instance id (`--instance`) | is a new id that differs from the in-tree collector instance id | the coordinator rejects the activation with a `duplicate collector instance` error, because it refuses two collector instances with one id |
+
+Because the instance id is new, the `collector_instance_id` field in the
+`work_item.record` payload changes at cutover. Stable keys do not change: they
+are built from the provider, `scope_id`, and the issue or metadata ids, not from
+the instance id. The freshness hint covers the payload, so the first claim after
+cutover stores a fresh generation.
 
 The collector copies `scope_id`, `collector_instance_id`, and `source_system`
 from the claim the host sends; it has no setting of its own for them. A
 `scope_id` in `config` is only a cross-check and is rejected when it differs
 from `host.scope.id`.
 
-Before enabling an activation, read the three values from the live in-tree
-collector instance configuration and write them into the activation. Do not
-copy the placeholders in `config.example.yaml` (`jira:site:example`,
-`jira-primary`). Run only one of the two collectors per site: with the same
-scope and instance id they would write the same stable keys.
+Before enabling an activation, read the scope id and the source system from the
+live in-tree collector instance configuration and write them into the
+activation. Do not copy the placeholder scope id in `config.example.yaml`
+(`jira:site:example`). Pick an instance id that no in-tree instance uses. Run
+only one of the two collectors per site: with the same scope id they would write
+the same stable keys.
 
 ## Producer grants
 
