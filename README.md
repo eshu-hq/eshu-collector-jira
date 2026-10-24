@@ -181,11 +181,12 @@ published payload schemas the manifest references. `go test
 rewrites them after a deliberate output change.
 
 `eshu component inspect`, `verify`, and `conform` read the producer grants in
-the component home (`--component-home`) since eshu-hq/eshu#8952, so they judge
-this manifest once the nine grants are recorded with `scripts/record-grants.sh`.
+the component home (`--component-home`) on eshu `main` since eshu-hq/eshu#8952
+(a release carries it once one is cut after that change), so they judge this
+manifest once the nine grants are recorded with `scripts/record-grants.sh`.
 Without the grants they reject it (`fact kind "work_item.record" is core-owned
-by Eshu ...`), as `install` and `enable` do. The Go harness above is the proof
-that runs in this repository.
+by Eshu ...`; `conform` shows that text under `--json`), as `install` and
+`enable` do. The Go harness above is the proof that runs in this repository.
 
 The manifest omits `consumerContracts.reducer.phases` on purpose. The only
 phase the SDK harness accepts for an optional component is
