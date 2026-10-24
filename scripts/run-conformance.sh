@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Runs this repository's conformance gate: build, vet, full tests.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+go build ./...
+go vet ./...
+go test -race ./... -count=1

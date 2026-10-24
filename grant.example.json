@@ -1,0 +1,101 @@
+[
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "work_item.record",
+    "producer_id": "dev.eshu.collector.jira",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "jira",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "work_item.transition",
+    "producer_id": "dev.eshu.collector.jira",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "jira",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "work_item.external_link",
+    "producer_id": "dev.eshu.collector.jira",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "jira",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "work_item.project_metadata",
+    "producer_id": "dev.eshu.collector.jira",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "jira",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "work_item.issue_type_metadata",
+    "producer_id": "dev.eshu.collector.jira",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "jira",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "work_item.status_metadata",
+    "producer_id": "dev.eshu.collector.jira",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "jira",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "work_item.workflow_metadata",
+    "producer_id": "dev.eshu.collector.jira",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "jira",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "work_item.field_metadata",
+    "producer_id": "dev.eshu.collector.jira",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "jira",
+    "version": "0.1.0"
+  },
+  {
+    "expires_at": "2027-10-01T00:00:00Z",
+    "kind": "work_item.metadata_warning",
+    "producer_id": "dev.eshu.collector.jira",
+    "revoked": false,
+    "schema_versions": [
+      "1.0.0"
+    ],
+    "scope": "jira",
+    "version": "0.1.0"
+  }
+]

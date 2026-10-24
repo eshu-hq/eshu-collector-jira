@@ -1,0 +1,297 @@
+package jira
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"math"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"sort"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
+)
+
+// zzReplayScenario is one recorded Jira site: the activation config, the
+// credential environment, a fixed clock, and the HTTP responses keyed by
+// "METHOD path?sortedQuery" (POST search adds "#<nextPageToken>"). The same
+// files drive the in-tree collector when the parity goldens are regenerated
+// (see testdata/README.md), so this harness keeps no collector-specific logic.
+type zzReplayScenario struct {
+	Name      string                    `json:"name"`
+	Now       time.Time                 `json:"now"`
+	Env       map[string]string         `json:"env"`
+	Config    map[string]any            `json:"config"`
+	Responses map[string]zzReplayResult `json:"responses"`
+}
+
+type zzReplayResult struct {
+	Status  int               `json:"status"`
+	Headers map[string]string `json:"headers"`
+	Body    json.RawMessage   `json:"body"`
+}
+
+// zzReplayTransport serves a scenario without opening a socket and records what
+// the collector asked for.
+type zzReplayTransport struct {
+	scenario zzReplayScenario
+	mu       sync.Mutex
+	calls    []string
+	missing  []string
+	auth     []string
+	bodies   []string
+}
+
+func zzLoadScenario(t testing.TB, name string) zzReplayScenario {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("testdata", "source", name+".json"))
+	if err != nil {
+		t.Fatalf("read scenario %s: %v", name, err)
+	}
+	var scenario zzReplayScenario
+	if err := json.Unmarshal(raw, &scenario); err != nil {
+		t.Fatalf("decode scenario %s: %v", name, err)
+	}
+	return scenario
+}
+
+func (s zzReplayScenario) getenv(key string) string { return s.Env[key] }
+
+func zzNewReplayTransport(scenario zzReplayScenario) *zzReplayTransport {
+	return &zzReplayTransport{scenario: scenario}
+}
+
+func (r *zzReplayTransport) client() *http.Client {
+	return &http.Client{Transport: r}
+}
+
+// RoundTrip implements http.RoundTripper.
+func (r *zzReplayTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	// A real transport stops on a canceled or expired context; so does this.
+	if err := request.Context().Err(); err != nil {
+		return nil, err
+	}
+	var body []byte
+	if request.Body != nil {
+		body, _ = io.ReadAll(request.Body)
+		_ = request.Body.Close()
+	}
+	key := zzReplayKey(request.Method, request.URL, body)
+	r.mu.Lock()
+	r.calls = append(r.calls, key)
+	r.auth = append(r.auth, request.Header.Get("Authorization"))
+	r.bodies = append(r.bodies, string(body))
+	entry, ok := r.scenario.Responses[key]
+	if !ok {
+		r.missing = append(r.missing, key)
+	}
+	r.mu.Unlock()
+	if !ok {
+		entry = zzReplayResult{Status: http.StatusNotFound, Body: json.RawMessage(`{"errorMessages":["no replay entry"]}`)}
+	}
+	header := http.Header{"Content-Type": []string{"application/json"}}
+	for name, value := range entry.Headers {
+		header.Set(name, value)
+	}
+	return &http.Response{
+		Status:     fmt.Sprintf("%d %s", entry.Status, http.StatusText(entry.Status)),
+		StatusCode: entry.Status,
+		Header:     header,
+		Body:       io.NopCloser(bytes.NewReader(entry.Body)),
+		Request:    request,
+	}, nil
+}
+
+func zzReplayKey(method string, u *url.URL, body []byte) string {
+	key := method + " " + u.Path
+	if query := u.Query(); len(query) > 0 {
+		key += "?" + query.Encode()
+	}
+	if method == http.MethodPost {
+		var decoded struct {
+			NextPageToken string `json:"nextPageToken"`
+		}
+		_ = json.Unmarshal(body, &decoded)
+		key += "#" + decoded.NextPageToken
+	}
+	return key
+}
+
+func (r *zzReplayTransport) sortedCalls() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := append([]string(nil), r.calls...)
+	sort.Strings(out)
+	return out
+}
+
+func (r *zzReplayTransport) missingKeys() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.missing...)
+}
+
+type zzFactDump struct {
+	Kind             string         `json:"kind"`
+	StableKey        string         `json:"stable_key"`
+	SchemaVersion    string         `json:"schema_version"`
+	SourceConfidence string         `json:"source_confidence"`
+	CollectorKind    string         `json:"collector_kind"`
+	ObservedAt       string         `json:"observed_at"`
+	SourceSystem     string         `json:"source_system"`
+	SourceScopeID    string         `json:"source_scope_id"`
+	SourceURI        string         `json:"source_uri"`
+	SourceRecordID   string         `json:"source_record_id"`
+	IsTombstone      bool           `json:"is_tombstone"`
+	Payload          map[string]any `json:"payload"`
+}
+
+type zzGolden struct {
+	Scenario string `json:"scenario"`
+	Outcome  string `json:"outcome"`
+	Scope    struct {
+		ScopeID       string `json:"scope_id"`
+		ScopeKind     string `json:"scope_kind"`
+		SourceSystem  string `json:"source_system"`
+		CollectorKind string `json:"collector_kind"`
+		PartitionKey  string `json:"partition_key"`
+	} `json:"scope"`
+	Generation struct {
+		GenerationID    string `json:"generation_id"`
+		ObservedAt      string `json:"observed_at"`
+		FreshnessHint   string `json:"freshness_hint"`
+		TrustedDeletion bool   `json:"trusted_deletion"`
+	} `json:"generation"`
+	Facts   []zzFactDump `json:"facts,omitempty"`
+	Failure *struct {
+		Class          string `json:"class"`
+		Terminal       bool   `json:"terminal"`
+		Operation      string `json:"operation"`
+		RetryAfterSecs int    `json:"retry_after_seconds"`
+	} `json:"failure,omitempty"`
+}
+
+func zzTarget(t *testing.T, s zzReplayScenario) TargetConfig {
+	t.Helper()
+	str := func(k string) string { v, _ := s.Config[k].(string); return v }
+	num := func(k string) int { v, _ := s.Config[k].(float64); return int(v) }
+	lookback, err := time.ParseDuration(str("updated_lookback"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return TargetConfig{
+		ScopeID: "jira:site:fixture", SiteID: str("site_id"), BaseURL: str("base_url"),
+		Email: s.Env[str("email_env")], Token: s.Env[str("token_env")], JQL: str("jql"),
+		IssueLimit: num("issue_limit"), UpdatedLookback: lookback, ChangelogLimit: num("changelog_limit"),
+		RemoteLinkLimit: num("remote_link_limit"), MetadataLimit: num("metadata_limit"),
+	}
+}
+
+// TestZZGoldenParity regenerates the parity goldens from the in-tree
+// collector. Throwaway: it lives only in the golden worktree.
+func TestZZGoldenParity(t *testing.T) {
+	srcDir := os.Getenv("GOLDEN_SCENARIOS")
+	outDir := os.Getenv("GOLDEN_OUT_DIR")
+	if srcDir == "" || outDir == "" {
+		t.Skip("GOLDEN_SCENARIOS / GOLDEN_OUT_DIR not set")
+	}
+	files, err := filepath.Glob(filepath.Join(srcDir, "*.json"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no scenarios in %s", srcDir)
+	}
+	for _, file := range files {
+		raw, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var s zzReplayScenario
+		if err := json.Unmarshal(raw, &s); err != nil {
+			t.Fatal(err)
+		}
+		transport := zzNewReplayTransport(s)
+		target := zzTarget(t, s)
+		source, err := NewClaimedSource(SourceConfig{
+			CollectorInstanceID: "jira-qa",
+			Targets:             []TargetConfig{target},
+			ClientFactory: func(tc TargetConfig) (EvidenceClient, error) {
+				return NewHTTPClient(HTTPClientConfig{BaseURL: tc.BaseURL, Email: tc.Email, Token: tc.Token, Client: transport.client()})
+			},
+			Now: func() time.Time { return s.Now },
+		})
+		if err != nil {
+			t.Fatalf("%s: NewClaimedSource: %v", s.Name, err)
+		}
+		item := workflow.WorkItem{
+			WorkItemID: "work-1", RunID: "run-1", SourceRunID: "run-1", CollectorKind: scope.CollectorJira, CollectorInstanceID: "jira-qa",
+			SourceSystem: "jira", ScopeID: "jira:site:fixture", GenerationID: "generation-1", Status: workflow.WorkItemStatusClaimed,
+			AttemptCount: 1, CurrentFencingToken: 7, LeaseExpiresAt: s.Now.Add(time.Hour),
+		}
+		g := zzGolden{Scenario: s.Name}
+		generation, ok, err := source.NextClaimed(context.Background(), item)
+		if err != nil {
+			g.Outcome = "failure"
+			var pf ProviderFailure
+			if !errors.As(err, &pf) {
+				t.Fatalf("%s: non-provider failure %T: %v", s.Name, err, err)
+			}
+			g.Failure = &struct {
+				Class          string `json:"class"`
+				Terminal       bool   `json:"terminal"`
+				Operation      string `json:"operation"`
+				RetryAfterSecs int    `json:"retry_after_seconds"`
+			}{pf.FailureClass(), pf.TerminalFailure(), pf.FailureOperation(), int(math.Ceil(pf.RetryAfterDelay().Seconds()))}
+		} else {
+			if !ok {
+				t.Fatalf("%s: not ok", s.Name)
+			}
+			g.Outcome = "generation"
+			g.Scope.ScopeID = generation.Scope.ScopeID
+			g.Scope.ScopeKind = string(generation.Scope.ScopeKind)
+			g.Scope.SourceSystem = generation.Scope.SourceSystem
+			g.Scope.CollectorKind = string(generation.Scope.CollectorKind)
+			g.Scope.PartitionKey = generation.Scope.PartitionKey
+			g.Generation.GenerationID = generation.Generation.GenerationID
+			g.Generation.ObservedAt = generation.Generation.ObservedAt.UTC().Format(time.RFC3339Nano)
+			g.Generation.FreshnessHint = generation.Generation.FreshnessHint
+			g.Generation.TrustedDeletion = generation.Generation.TrustedDeletion
+			for env := range generation.Facts {
+				// Round-trip the payload through JSON so the dump holds exactly
+				// what a JSON consumer reads.
+				encoded, err := json.Marshal(env.Payload)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var payload map[string]any
+				if err := json.Unmarshal(encoded, &payload); err != nil {
+					t.Fatal(err)
+				}
+				g.Facts = append(g.Facts, zzFactDump{
+					Kind: env.FactKind, StableKey: env.StableFactKey, SchemaVersion: env.SchemaVersion, SourceConfidence: env.SourceConfidence,
+					CollectorKind: env.CollectorKind, ObservedAt: env.ObservedAt.UTC().Format(time.RFC3339Nano),
+					SourceSystem: env.SourceRef.SourceSystem, SourceScopeID: env.SourceRef.ScopeID, SourceURI: env.SourceRef.SourceURI,
+					SourceRecordID: env.SourceRef.SourceRecordID, IsTombstone: env.IsTombstone, Payload: payload,
+				})
+			}
+		}
+		if missing := transport.missingKeys(); len(missing) > 0 && g.Outcome == "generation" {
+			t.Fatalf("%s: scenario lacks replay entries: %v", s.Name, missing)
+		}
+		out, err := json.MarshalIndent(g, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(outDir, s.Name+".golden.json"), append(out, '\n'), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("%s: %s facts=%d", s.Name, g.Outcome, len(g.Facts))
+	}
+}

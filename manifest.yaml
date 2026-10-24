@@ -1,0 +1,77 @@
+apiVersion: eshu.dev/v1alpha1
+kind: ComponentPackage
+metadata:
+  id: dev.eshu.collector.jira
+  name: Jira collector
+  publisher: eshu-hq
+  version: 0.1.0
+spec:
+  compatibleCore: ">=0.0.5 <0.2.0"
+  componentType: collector
+  collectorKinds:
+    - jira
+  runtime:
+    sdkProtocol: collector-sdk/v1alpha1
+    adapter: process
+  artifacts:
+    - platform: linux/amd64
+      image: ghcr.io/eshu-hq/eshu-collector-jira@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  emittedFacts:
+    - kind: work_item.record
+      payloadSchemaRef: work_item.record
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: work_item.transition
+      payloadSchemaRef: work_item.transition
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: work_item.external_link
+      payloadSchemaRef: work_item.external_link
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: work_item.project_metadata
+      payloadSchemaRef: work_item.project_metadata
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: work_item.issue_type_metadata
+      payloadSchemaRef: work_item.issue_type_metadata
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: work_item.status_metadata
+      payloadSchemaRef: work_item.status_metadata
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: work_item.workflow_metadata
+      payloadSchemaRef: work_item.workflow_metadata
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: work_item.field_metadata
+      payloadSchemaRef: work_item.field_metadata
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: work_item.metadata_warning
+      payloadSchemaRef: work_item.metadata_warning
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+  telemetry:
+    # Declared only: the collector emits no metric under this prefix. See the
+    # README section "Operator signals".
+    metricsPrefix: eshu_dp_jira_collector_

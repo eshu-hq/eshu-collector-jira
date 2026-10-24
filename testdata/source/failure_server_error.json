@@ -1,0 +1,438 @@
+{
+  "config": {
+    "base_url": "http://jira.fixture.invalid",
+    "email_env": "JIRA_EMAIL",
+    "jql": "project = ESHU",
+    "site_id": "jira.fixture.invalid",
+    "token_env": "JIRA_TOKEN",
+    "updated_lookback": "87600h"
+  },
+  "env": {
+    "JIRA_EMAIL": "bot@fixture.invalid",
+    "JIRA_TOKEN": "tok-SECRET-123"
+  },
+  "name": "failure_server_error",
+  "now": "2026-10-01T12:00:00Z",
+  "responses": {
+    "GET /rest/api/3/field/search?maxResults=100&startAt=0": {
+      "body": {
+        "isLast": true,
+        "maxResults": 100,
+        "startAt": 0,
+        "total": 2,
+        "values": [
+          {
+            "description": "",
+            "id": "summary",
+            "name": "Summary",
+            "schema": {
+              "system": "summary",
+              "type": "string"
+            },
+            "self": "http://jira.fixture.invalid/rest/api/3/field/summary"
+          },
+          {
+            "description": "estimate",
+            "id": "customfield_10010",
+            "name": "Story Points",
+            "schema": {
+              "custom": "com.atlassian.jira.plugin.system.customfieldtypes:float",
+              "customId": 10010,
+              "type": "number"
+            }
+          }
+        ]
+      },
+      "status": 200
+    },
+    "GET /rest/api/3/issue/ESHU-1/changelog?maxResults=50&startAt=0": {
+      "body": {
+        "isLast": true,
+        "maxResults": 50,
+        "startAt": 0,
+        "total": 4,
+        "values": [
+          {
+            "author": {
+              "accountId": "acct-3",
+              "displayName": "Person 3"
+            },
+            "created": "2026-09-20T09:00:00.000+0000",
+            "id": "5001",
+            "items": [
+              {
+                "field": "status",
+                "fieldId": "status",
+                "from": "1",
+                "fromString": "To Do",
+                "to": "3",
+                "toString": "In Progress"
+              },
+              {
+                "field": "assignee",
+                "fieldId": "assignee",
+                "fromString": "Person 1",
+                "toString": "Person 2"
+              },
+              {
+                "field": "Story Points",
+                "fieldId": "customfield_10010",
+                "fromString": "3",
+                "toString": "5"
+              }
+            ]
+          },
+          {
+            "author": {
+              "accountId": "acct-1",
+              "displayName": "Person 1"
+            },
+            "created": "2026-09-21T09:00:00.000+0000",
+            "id": "5002",
+            "items": [
+              {
+                "field": "labels",
+                "fromString": "a",
+                "toString": "b"
+              },
+              {
+                "field": "labels",
+                "fromString": "b",
+                "toString": "c"
+              }
+            ]
+          },
+          {
+            "created": "2026-09-22T09:00:00.000+0000",
+            "id": "5003",
+            "items": [
+              {
+                "field": "resolution",
+                "from": "9",
+                "to": "10"
+              }
+            ]
+          }
+        ]
+      },
+      "status": 200
+    },
+    "GET /rest/api/3/issue/ESHU-1/remotelink": {
+      "body": [
+        {
+          "application": {
+            "name": "GitHub",
+            "type": "com.github"
+          },
+          "globalId": "gh-1",
+          "id": 7001,
+          "object": {
+            "summary": "PR summary",
+            "title": "Fix deploy",
+            "url": "https://github.com/Eshu-HQ/Eshu/pull/42?token=abc&ref=x#frag"
+          },
+          "relationship": "mentioned in"
+        },
+        {
+          "application": {
+            "name": "Confluence",
+            "type": "com.atlassian.confluence"
+          },
+          "id": 7002,
+          "object": {
+            "title": "Design",
+            "url": "https://wiki.fixture.invalid/pages/1"
+          }
+        },
+        {
+          "application": {
+            "name": "GitHub",
+            "type": "com.github"
+          },
+          "globalId": "gh-1-dup",
+          "id": 7001,
+          "object": {
+            "url": "https://github.com/Eshu-HQ/Eshu/pull/42"
+          }
+        },
+        {
+          "application": {
+            "name": "GitLab",
+            "type": "gitlab"
+          },
+          "id": 7003,
+          "object": {
+            "title": "MR",
+            "url": "https://gitlab.fixture.invalid/Group/Sub/Repo/-/merge_requests/7"
+          },
+          "relationship": "implements"
+        },
+        {
+          "application": {
+            "name": "Weird"
+          },
+          "object": {}
+        },
+        {
+          "id": "str-id",
+          "object": {
+            "url": "https://user:pw@example.invalid/x?api_key=1"
+          }
+        }
+      ],
+      "status": 200
+    },
+    "GET /rest/api/3/issue/ESHU-2/changelog?maxResults=50&startAt=0": {
+      "body": {
+        "values": []
+      },
+      "status": 200
+    },
+    "GET /rest/api/3/issue/ESHU-2/remotelink": {
+      "body": [],
+      "status": 200
+    },
+    "GET /rest/api/3/issue/ESHU-3/changelog?maxResults=50&startAt=0": {
+      "body": {
+        "isLast": true,
+        "maxResults": 50,
+        "startAt": 0,
+        "total": 1,
+        "values": [
+          {
+            "author": {
+              "accountId": "acct-3",
+              "displayName": "Person 3"
+            },
+            "created": "2026-09-25T09:00:00.000+0000",
+            "id": "5101",
+            "items": [
+              {
+                "field": "summary",
+                "fromString": "Old title",
+                "toString": "Third"
+              }
+            ]
+          }
+        ]
+      },
+      "status": 200
+    },
+    "GET /rest/api/3/issue/ESHU-3/remotelink": {
+      "body": [],
+      "status": 200
+    },
+    "GET /rest/api/3/issuetype/project?projectId=10000": {
+      "body": [
+        {
+          "description": "A task",
+          "entityId": "ent-1",
+          "hierarchyLevel": 0,
+          "id": "10002",
+          "name": "Task",
+          "scope": {
+            "project": {
+              "id": "10000"
+            },
+            "type": "PROJECT"
+          },
+          "self": "http://jira.fixture.invalid/rest/api/3/issuetype/10002",
+          "subtask": false
+        },
+        {
+          "description": "",
+          "hierarchyLevel": -1,
+          "id": "10003",
+          "name": "Sub-task",
+          "self": "http://jira.fixture.invalid/rest/api/3/issuetype/10003",
+          "subtask": true
+        }
+      ],
+      "status": 200
+    },
+    "GET /rest/api/3/issuetype/project?projectId=10001": {
+      "body": [],
+      "status": 200
+    },
+    "GET /rest/api/3/project/search?maxResults=100&startAt=0": {
+      "body": {
+        "isLast": true,
+        "maxResults": 100,
+        "startAt": 0,
+        "total": 2,
+        "values": [
+          {
+            "archived": false,
+            "deleted": false,
+            "id": "10000",
+            "insight": {
+              "lastIssueUpdateTime": "2026-09-30T10:00:00.000+0000",
+              "totalIssueCount": 42
+            },
+            "key": "ESHU",
+            "name": "Eshu Platform",
+            "projectCategory": {
+              "id": "10100",
+              "name": "Platform"
+            },
+            "projectTypeKey": "software",
+            "self": "http://jira.fixture.invalid/rest/api/3/project/10000?token=x",
+            "style": "next-gen"
+          },
+          {
+            "archived": true,
+            "deleted": false,
+            "id": "10001",
+            "key": "OLD",
+            "name": "Retired",
+            "projectTypeKey": "business",
+            "self": "http://jira.fixture.invalid/rest/api/3/project/10001",
+            "style": "classic"
+          }
+        ]
+      },
+      "status": 200
+    },
+    "GET /rest/api/3/statuses/search?maxResults=100&startAt=0": {
+      "body": {
+        "isLast": true,
+        "maxResults": 100,
+        "startAt": 0,
+        "total": 2,
+        "values": [
+          {
+            "description": "Working",
+            "id": "3",
+            "name": "In Progress",
+            "scope": {
+              "project": {
+                "id": "10000"
+              },
+              "type": "PROJECT"
+            },
+            "self": "http://jira.fixture.invalid/rest/api/3/status/3",
+            "statusCategory": "IN_PROGRESS"
+          },
+          {
+            "description": "",
+            "id": "10001",
+            "name": "Done",
+            "self": "http://jira.fixture.invalid/rest/api/3/status/10001",
+            "statusCategory": "DONE"
+          }
+        ]
+      },
+      "status": 200
+    },
+    "GET /rest/api/3/workflows/search?maxResults=100&startAt=0": {
+      "body": {
+        "isLast": true,
+        "maxResults": 100,
+        "startAt": 0,
+        "total": 1,
+        "values": [
+          {
+            "description": "flow",
+            "id": "wf-1",
+            "name": "Eshu Workflow",
+            "scope": {
+              "project": {
+                "id": "10000"
+              },
+              "type": "PROJECT"
+            },
+            "statuses": [
+              {
+                "deprecated": false,
+                "statusId": "3",
+                "statusReference": "ref-1"
+              },
+              {
+                "deprecated": true,
+                "statusId": "10001",
+                "statusReference": "ref-2"
+              }
+            ],
+            "transitions": [
+              {
+                "actions": [],
+                "id": "11",
+                "links": [
+                  {
+                    "fromStatusReference": "ref-2"
+                  },
+                  {
+                    "fromStatusReference": "ref-0"
+                  },
+                  {
+                    "fromStatusReference": " "
+                  }
+                ],
+                "name": "Start",
+                "toStatusReference": "ref-1",
+                "triggers": [],
+                "type": "DIRECTED",
+                "validators": [
+                  {}
+                ]
+              }
+            ],
+            "version": {
+              "id": "v-1",
+              "versionNumber": 3
+            }
+          }
+        ]
+      },
+      "status": 200
+    },
+    "POST /rest/api/3/search/jql#": {
+      "body": {
+        "errorMessages": [
+          "fixture error 503"
+        ]
+      },
+      "status": 503
+    },
+    "POST /rest/api/3/search/jql#tok2": {
+      "body": {
+        "isLast": true,
+        "issues": [
+          {
+            "fields": {
+              "assignee": {
+                "accountId": "acct-1",
+                "displayName": "Person 1"
+              },
+              "created": "2026-09-01T10:00:00.000+0000",
+              "issuetype": {
+                "id": "10002",
+                "name": "Task"
+              },
+              "project": {
+                "id": "10000",
+                "key": "ESHU",
+                "name": "Eshu Platform"
+              },
+              "reporter": {
+                "accountId": "acct-2",
+                "displayName": "Person 2"
+              },
+              "resolutiondate": null,
+              "status": {
+                "id": "3",
+                "name": "To Do"
+              },
+              "summary": "Third",
+              "updated": "2026-09-30T11:30:00.000+0000"
+            },
+            "id": "10003",
+            "key": "ESHU-3",
+            "self": "http://jira.fixture.invalid/rest/api/3/issue/10003?token=leak#frag"
+          }
+        ]
+      },
+      "status": 200
+    }
+  }
+}

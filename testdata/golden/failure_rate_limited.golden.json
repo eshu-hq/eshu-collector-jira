@@ -1,0 +1,23 @@
+{
+  "scenario": "failure_rate_limited",
+  "outcome": "failure",
+  "scope": {
+    "scope_id": "",
+    "scope_kind": "",
+    "source_system": "",
+    "collector_kind": "",
+    "partition_key": ""
+  },
+  "generation": {
+    "generation_id": "",
+    "observed_at": "",
+    "freshness_hint": "",
+    "trusted_deletion": false
+  },
+  "failure": {
+    "class": "rate_limited",
+    "terminal": false,
+    "operation": "search_issues",
+    "retry_after_seconds": 120
+  }
+}

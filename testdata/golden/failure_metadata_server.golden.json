@@ -1,0 +1,23 @@
+{
+  "scenario": "failure_metadata_server",
+  "outcome": "failure",
+  "scope": {
+    "scope_id": "",
+    "scope_kind": "",
+    "source_system": "",
+    "collector_kind": "",
+    "partition_key": ""
+  },
+  "generation": {
+    "generation_id": "",
+    "observed_at": "",
+    "freshness_hint": "",
+    "trusted_deletion": false
+  },
+  "failure": {
+    "class": "retryable",
+    "terminal": false,
+    "operation": "list_projects",
+    "retry_after_seconds": 0
+  }
+}

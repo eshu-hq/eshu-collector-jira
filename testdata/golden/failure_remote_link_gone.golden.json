@@ -1,0 +1,23 @@
+{
+  "scenario": "failure_remote_link_gone",
+  "outcome": "failure",
+  "scope": {
+    "scope_id": "",
+    "scope_kind": "",
+    "source_system": "",
+    "collector_kind": "",
+    "partition_key": ""
+  },
+  "generation": {
+    "generation_id": "",
+    "observed_at": "",
+    "freshness_hint": "",
+    "trusted_deletion": false
+  },
+  "failure": {
+    "class": "archived",
+    "terminal": true,
+    "operation": "read_remote_links",
+    "retry_after_seconds": 0
+  }
+}
