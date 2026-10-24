@@ -153,7 +153,7 @@ the same site. The activation instance id must not:
 | `host.scope.id` | equals the in-tree target's `scope_id` (the `targets[].scope_id` in the in-tree collector instance configuration) | every stable key and `scope_id` changes: the site is ingested as a new scope |
 | `host.scope.kind` | equals `jira_site` | the scope no longer matches the in-tree scope kind |
 | `host.sourceSystem` | equals the in-tree source system, `jira` | `source_ref` and `source_system` change on every fact |
-| activation instance id (`--instance`) | is a new id that differs from the in-tree collector instance id | the coordinator rejects the activation with a `duplicate collector instance` error, because it refuses two collector instances with one id |
+| activation instance id (`--instance`) | is a new id that differs from the in-tree collector instance id | the coordinator reports a `duplicate collector instance` configuration error and does not start, because it refuses two collector instances with one id |
 
 Because the instance id is new, the `collector_instance_id` field in the
 `work_item.record` payload changes at cutover. Stable keys do not change: they

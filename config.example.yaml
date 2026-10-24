@@ -10,9 +10,10 @@
 #   host.scope.kind      = jira_site
 #   host.sourceSystem    = the in-tree source system (jira)
 # The activation instance id (--instance) must be a NEW id, different from the
-# in-tree collector instance id: the coordinator rejects a duplicate collector
-# instance id. Only the payload's collector_instance_id changes; stable keys do
-# not.
+# in-tree collector instance id: a duplicate collector instance id is a
+# coordinator configuration error, and the coordinator does not start while the
+# duplicate exists. Only the payload's collector_instance_id changes; stable
+# keys do not.
 # The values below are placeholders. Read the real scope id and source system
 # from the live in-tree configuration; do not invent new ones.
 host:
