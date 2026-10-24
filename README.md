@@ -77,8 +77,8 @@ The collector stops starting provider calls at the deadline minus
 `min(2s, 5% of the time left)` (a 60 s lease gives 58 s, a 10 s lease 9.5 s, a
 1 s lease 950 ms), cancels the call in flight, and returns a `retryable` result
 with failure class `claim_deadline_exceeded`. The result sets
-`retry_after_seconds`, but the worker does not honor it yet (see "Operator
-signals"), so the collector's retry guidance has no effect. The
+`retry_after_seconds`, which the worker honors on eshu `main` since
+eshu-hq/eshu#9008 (see "Operator signals"). The
 result carries no facts: a deadline stop is never `partial`, and facts read so
 far are dropped so an incomplete read cannot commit as a complete generation.
 The next attempt starts over, so a site that cannot finish inside the lease
@@ -88,16 +88,21 @@ deadline already passed fails at once without calling Jira.
 
 ## Operator signals
 
-Today the extension host passes one thing from a claim's result to the work
-item: the **failure class** (`rate_limited`, `invalid_config`,
-`unsupported_option`, `claim_deadline_exceeded`, ...). The worker does not set
-a status recorder, so everything else in the result's status row is dropped:
+The extension host passes the **failure class** (`rate_limited`,
+`invalid_config`, `unsupported_option`, `claim_deadline_exceeded`, ...) from a
+claim's result to the work item. On eshu `main` since eshu-hq/eshu#9008 (a
+release carries it once one is cut after that change), the worker also sets a
+status recorder: it records every claim result as six
+`eshu_dp_component_extension_*` metrics and one `component extension result`
+log line, and it honors `retry_after_seconds`:
 
-- **Dropped: source latency and fact count.** The collector fills them in, but
-  no dashboard or work item shows them.
-- **Dropped: `retry_after_seconds`.** The collector sends it on every retryable
-  result, but the worker does not honor it yet, so a retryable result gets no
-  retry delay from the collector's guidance.
+- **Recorded: source latency and fact count.** The collector fills them in, and
+  the host records them in the metrics above.
+- **Honored: `retry_after_seconds`.** The collector sends it on every retryable
+  result. The worker retries after the larger of the poll interval and that
+  request, capped at one hour, until the attempt budget is spent. The
+  `eshu_dp_component_extension_retry_after_seconds` gauge and the log line hold
+  the request, not the applied delay.
 - **Dropped: the stderr log line.** The collector writes one JSON line per
   claim to stderr: the config rejection reason, the failed operation
   (`search_issues`, `read_changelog`, ...), the HTTP status, and collection
@@ -109,10 +114,9 @@ a status recorder, so everything else in the result's status row is dropped:
   `telemetry.metricsPrefix: eshu_dp_jira_collector_`, but nothing in this
   repository emits a metric under it.
 
-eshu-hq/eshu#8908 tracks recording status rows and honoring the retry delay in
-the worker. Until it lands, a rejected config shows up only as the failure
-class on the work item; find the cause by running the collector with the
-activation's config and a recorded request.
+The config rejection reason stays in the dropped stderr line, so find the cause
+of a rejected config by running the collector with the activation's config and
+a recorded request. The host records the failure class, not the reason.
 
 ## Image and seeding
 
