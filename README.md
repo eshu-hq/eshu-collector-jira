@@ -197,7 +197,16 @@ fails if a phase list is added back.
 is pushed. Nothing runs on a pull request or a branch push, and the workflow
 deploys nothing.
 
-1. Merge the change to `main`, then tag the merge commit and push the tag.
+Before the first tag, confirm the repository restricts who can create `v*`
+tags (a tag ruleset limited to maintainers). The workflow runs on **any** commit
+a `v*` tag points at, including one that is not on `main`, so tag creation is
+the control that decides what gets published as a signed image.
+
+1. Set `metadata.version` in `manifest.yaml` to the version you are releasing
+   and merge that change to `main`. Then tag the merge commit and push the tag.
+   The workflow refuses to publish unless the tag equals `v` plus that version
+   (a `-pre-release` suffix on the tag is allowed when the manifest version has
+   none), and it checks this before it builds or pushes anything.
 2. The workflow builds `linux/amd64` (the only platform the manifest declares),
    pushes `ghcr.io/eshu-hq/eshu-collector-jira:<tag>`, writes the digest to the
    job summary, signs the digest with cosign (keyless), and attaches a SLSA
