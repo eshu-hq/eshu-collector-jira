@@ -125,6 +125,11 @@ func seed(dest string, executable string, manifest []byte) (string, error) {
 	if dest == "" {
 		return "", errors.New("seed: --dest is required")
 	}
+	// #nosec G301 -- the seeded dir holds only public artifacts (a 0755
+	// binary and a 0644 manifest, both pinned by seed_test.go) and must stay
+	// traversable by a runtime uid that may differ from the seeder (the image
+	// lane hands the dir across a container volume mount); 0750 would break
+	// that reader without protecting any secret.
 	if err := os.MkdirAll(dest, 0o755); err != nil {
 		return "", errors.New("seed: create destination directory")
 	}
