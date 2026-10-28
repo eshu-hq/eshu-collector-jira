@@ -1,0 +1,14 @@
+grant.example.json
+  h_78a442cba0b3e6 102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "285125c884703f130802be0dcdc1c13c251442b5",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
