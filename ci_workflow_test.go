@@ -263,3 +263,58 @@ func readCIWorkflow(t *testing.T) workflowFile {
 	}
 	return workflow
 }
+
+// imageLaneProblems returns every way the image lane breaks its Go-source
+// selection contract: the lane must select on the go output being true
+// (not merely mention the output name), keep the image-output disjunct,
+// and stay behind the fail-closed changes-result wrapper.
+func imageLaneProblems(condition string) []string {
+	var problems []string
+	if !strings.Contains(condition, "needs.changes.outputs.go == 'true'") {
+		problems = append(problems, "image if lacks needs.changes.outputs.go == 'true' (Go PRs skip the lane)")
+	}
+	if strings.Contains(condition, "needs.changes.outputs.go !=") {
+		problems = append(problems, "image if inverts the go comparison (Go PRs skip the lane)")
+	}
+	if strings.Contains(condition, "needs.changes.outputs.go == 'false'") {
+		problems = append(problems, "image if pins go == 'false' (the lane never runs on Go PRs)")
+	}
+	if !strings.Contains(condition, "needs.changes.outputs.image == 'true'") {
+		problems = append(problems, "image if lacks needs.changes.outputs.image == 'true' (Dockerfile-only PRs skip the lane)")
+	}
+	if !strings.Contains(condition, "needs.changes.result") {
+		problems = append(problems, "image if lacks the changes-result wrapper (filter errors go vacantly green)")
+	}
+	return problems
+}
+
+// TestImageLaneRunsOnGoSources keeps the shipped artifact validated on
+// PRs that change what it embeds: the Dockerfile COPYs go.mod/go.sum,
+// COPYs the whole context (which keeps .go sources), and go-builds the
+// binary, so a Go-source or go.mod PR must select the image lane. A
+// go.mod toolchain bump past the pinned base would otherwise pass every
+// Go lane yet break docker build, surfacing only as post-merge red main.
+// The live ci.yml text must pass; both mutants must fail.
+func TestImageLaneRunsOnGoSources(t *testing.T) {
+	t.Parallel()
+
+	workflow := readCIWorkflow(t)
+	job, ok := workflow.Jobs["image"]
+	if !ok {
+		t.Fatal("ci.yml has no image job")
+	}
+	if problems := imageLaneProblems(job.If); len(problems) > 0 {
+		t.Errorf("image lane breaks its selection contract:\n%s", strings.Join(problems, "\n"))
+	}
+
+	for name, mutant := range map[string]string{
+		// Inverted go polarity: the lane never runs on Go PRs.
+		"inverted go polarity": "always() && (needs.changes.result != 'success' || needs.changes.outputs.image == 'true' || needs.changes.outputs.go == 'false')",
+		// Dropped image clause: Dockerfile-only PRs skip the lane.
+		"dropped image clause": "always() && (needs.changes.result != 'success' || needs.changes.outputs.go == 'true')",
+	} {
+		if len(imageLaneProblems(mutant)) == 0 {
+			t.Errorf("%s: the gate accepted a violating image condition", name)
+		}
+	}
+}
