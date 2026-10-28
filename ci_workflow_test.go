@@ -4,7 +4,9 @@
 package collector
 
 import (
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -34,4 +36,175 @@ func TestCIWorkflowPinsActionsByCommitSHA(t *testing.T) {
 			}
 		}
 	}
+}
+
+// frozenCILanes are the stable org job names. Only ci-complete is ever
+// required in a ruleset, so these names must not churn.
+var frozenCILanes = []string{"changes", "lint", "test", "race", "shell", "image", "govulncheck", "gosec", "ci-complete"}
+
+// TestCIWorkflowKeepsFrozenJobNames keeps the org lane contract: the frozen
+// names exist, and the retired vet/boundary jobs are gone (vet is a step in
+// lint now; the boundary test runs inside go test ./... in test and race).
+func TestCIWorkflowKeepsFrozenJobNames(t *testing.T) {
+	t.Parallel()
+
+	workflow := readCIWorkflow(t)
+	for _, name := range frozenCILanes {
+		if _, ok := workflow.Jobs[name]; !ok {
+			t.Errorf("ci.yml has no %q job, want the frozen lane names %v", name, frozenCILanes)
+		}
+	}
+	for _, name := range []string{"vet", "boundary"} {
+		if _, ok := workflow.Jobs[name]; ok {
+			t.Errorf("ci.yml still has a %q job, want it folded into the frozen lanes", name)
+		}
+	}
+	complete, ok := workflow.Jobs["ci-complete"]
+	if !ok {
+		t.Fatal("ci.yml has no ci-complete job")
+	}
+	needed := make(map[string]bool, len(complete.Needs))
+	for _, name := range complete.Needs {
+		needed[name] = true
+	}
+	for _, name := range frozenCILanes {
+		if name == "ci-complete" {
+			continue
+		}
+		if !needed[name] {
+			t.Errorf("ci-complete needs %v, want every other frozen lane %v", complete.Needs, frozenCILanes)
+		}
+	}
+}
+
+// TestCIWorkflowSetsJobTimeouts keeps a hung runner from holding a PR open
+// forever: every lane declares a timeout.
+func TestCIWorkflowSetsJobTimeouts(t *testing.T) {
+	t.Parallel()
+
+	workflow := readCIWorkflow(t)
+	for name, job := range workflow.Jobs {
+		if job.Timeout <= 0 {
+			t.Errorf("job %s sets no timeout-minutes", name)
+		}
+	}
+}
+
+// TestCIWorkflowCancelsSupersededRuns keeps stale pushes from consuming
+// runners: one concurrency group per PR (or ref) with cancellation.
+func TestCIWorkflowCancelsSupersededRuns(t *testing.T) {
+	t.Parallel()
+
+	workflow := readCIWorkflow(t)
+	if group := fmt.Sprint(workflow.Concurrency["group"]); !strings.Contains(group, "github.event.pull_request.number") {
+		t.Errorf("concurrency group = %q, want one group per PR", group)
+	}
+	if cancel := fmt.Sprint(workflow.Concurrency["cancel-in-progress"]); cancel != "true" {
+		t.Errorf("cancel-in-progress = %q, want true", cancel)
+	}
+}
+
+// TestCIWorkflowPRLeanesNeedNoConfiguredSecrets keeps fork PRs working: the
+// only secret any lane may touch is the automatic GITHUB_TOKEN (used solely
+// by the schedule-only issue step), and the workflow holds only
+// contents: read.
+func TestCIWorkflowPRLeanesNeedNoConfiguredSecrets(t *testing.T) {
+	t.Parallel()
+
+	workflow := readCIWorkflow(t)
+	if got := workflow.Permissions["contents"]; got != "read" {
+		t.Errorf("top-level contents permission = %q, want read", got)
+	}
+	for name, job := range workflow.Jobs {
+		var texts []string
+		for key, value := range job.Env {
+			texts = append(texts, key+"="+value)
+		}
+		for _, step := range job.Steps {
+			texts = append(texts, step.Run)
+			for key, value := range step.Env {
+				texts = append(texts, key+"="+value)
+			}
+			for key, value := range step.With {
+				texts = append(texts, key+"="+fmt.Sprint(value))
+			}
+		}
+		for _, text := range texts {
+			for _, match := range secretUsePattern.FindAllStringSubmatch(text, -1) {
+				if match[1] != "GITHUB_TOKEN" {
+					t.Errorf("job %s uses configured secret %q, want no secrets but GITHUB_TOKEN", name, match[1])
+				}
+			}
+		}
+	}
+}
+
+// aggregatorProblems returns every way run breaks the ci-complete contract:
+// it must compare each job's result (whole-object comparison never matches,
+// a bare needs.*.result array breaks green runs), fail failed and cancelled
+// lanes, and say skips are allowed.
+func aggregatorProblems(run string) []string {
+	var problems []string
+	if !strings.Contains(run, `v["result"]`) && !strings.Contains(run, `.get("result")`) {
+		problems = append(problems, `aggregator must compare v["result"] per job, not whole job objects (false-green)`)
+	}
+	if strings.Contains(run, "join(needs.*.result") {
+		problems = append(problems, "aggregator must not expand needs.*.result (bare array breaks green runs)")
+	}
+	for _, want := range []string{`"failure"`, `"cancelled"`, "skip"} {
+		if !strings.Contains(run, want) {
+			problems = append(problems, "aggregator never mentions "+want)
+		}
+	}
+	return problems
+}
+
+// TestCICompleteAggregatesPerJobResults pins the aggregator shape against
+// its two historical false modes: the pre-gates shell loop over
+// join(needs.*.result) and a whole-object comparison. The live ci.yml text
+// must pass; both mutants must fail.
+func TestCICompleteAggregatesPerJobResults(t *testing.T) {
+	t.Parallel()
+
+	workflow := readCIWorkflow(t)
+	complete, ok := workflow.Jobs["ci-complete"]
+	if !ok {
+		t.Fatal("ci.yml has no ci-complete job")
+	}
+	var runs []string
+	for _, step := range complete.Steps {
+		runs = append(runs, step.Run)
+	}
+	if problems := aggregatorProblems(strings.Join(runs, "\n")); len(problems) > 0 {
+		t.Errorf("ci-complete aggregator breaks its contract:\n%s", strings.Join(problems, "\n"))
+	}
+
+	for name, run := range map[string]string{
+		// The pre-gates aggregator: a bare needs.*.result array joined
+		// into shell words, blind to skips and cancelled lanes.
+		"bare needs array": "RESULTS: ${{ join(needs.*.result, ' ') }}\nfor result in $RESULTS; do if [ \"$result\" != \"success\" ]; then exit 1; fi; done",
+		// Whole job objects never equal "failure": every red run passed.
+		"whole objects": `bad = {k: v for k, v in needs.items() if v == "failure"}`,
+	} {
+		if len(aggregatorProblems(run)) == 0 {
+			t.Errorf("%s: the gate accepted a violating aggregator", name)
+		}
+	}
+}
+
+func readCIWorkflow(t *testing.T) workflowFile {
+	t.Helper()
+
+	raw, err := os.ReadFile(".github/workflows/ci.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workflow workflowFile
+	if err := yaml.Unmarshal(raw, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	if len(workflow.Jobs) == 0 {
+		t.Fatal("ci.yml defines no jobs")
+	}
+	return workflow
 }

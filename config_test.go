@@ -169,7 +169,7 @@ func TestTargetConfigNeverPrintsCredential(t *testing.T) {
 	}
 	for _, rendered := range []string{
 		fmt.Sprint(settings.Target), fmt.Sprintf("%v", settings.Target), fmt.Sprintf("%+v", settings.Target),
-		fmt.Sprintf("%#v", settings.Target), fmt.Sprintf("%s", settings.Target),
+		fmt.Sprintf("%#v", settings.Target), settings.Target.String(),
 	} {
 		if strings.Contains(rendered, testToken) || strings.Contains(rendered, "bot@fixture.invalid") {
 			t.Fatalf("formatted target leaks a credential: %s", rendered)
