@@ -192,6 +192,61 @@ func TestCICompleteAggregatesPerJobResults(t *testing.T) {
 	}
 }
 
+// govulnReachabilityProblems returns every way the govulncheck lane breaks
+// its schedule-only notification contract: the scan must fail loud (no
+// -no-fail, no || true, no continue-on-error) so the failure()-gated issue
+// step below it stays reachable, and the issue step must carry failure()
+// plus the schedule gate (fork-PR safety).
+func govulnReachabilityProblems(scan, issue workflowStep) []string {
+	var problems []string
+	for _, quiet := range []string{"-no-fail", "|| true"} {
+		if strings.Contains(scan.Run, quiet) {
+			problems = append(problems, "govulncheck scan contains "+quiet+" (the issue step is unreachable)")
+		}
+	}
+	if scan.ContinueOnError {
+		problems = append(problems, "govulncheck scan sets continue-on-error (the issue step is unreachable)")
+	}
+	for _, want := range []string{"failure()", "schedule"} {
+		if !strings.Contains(issue.If, want) {
+			problems = append(problems, "govulncheck issue step if lacks "+want)
+		}
+	}
+	return problems
+}
+
+// TestGovulncheckIssueStepIsReachable pins the schedule-only notification
+// shape: the live ci.yml text must pass, and a quieted scan / ungated issue
+// mutant must fail (mirrors TestCICompleteAggregatesPerJobResults).
+func TestGovulncheckIssueStepIsReachable(t *testing.T) {
+	t.Parallel()
+
+	workflow := readCIWorkflow(t)
+	job, ok := workflow.Jobs["govulncheck"]
+	if !ok {
+		t.Fatal("ci.yml has no govulncheck job")
+	}
+	scanIdx := stepIndex(job.Steps, func(s workflowStep) bool { return strings.Contains(s.Run, "govulncheck -scan") })
+	issueIdx := stepIndex(job.Steps, func(s workflowStep) bool { return strings.Contains(s.Run, "gh issue create") })
+	if scanIdx < 0 || issueIdx < 0 {
+		t.Fatalf("govulncheck job has no scan/issue steps (scan=%d issue=%d)", scanIdx, issueIdx)
+	}
+	if problems := govulnReachabilityProblems(job.Steps[scanIdx], job.Steps[issueIdx]); len(problems) > 0 {
+		t.Errorf("govulncheck notification is unreachable:\n%s", strings.Join(problems, "\n"))
+	}
+
+	scan := job.Steps[scanIdx]
+	scan.Run += " govulncheck -no-fail"
+	if len(govulnReachabilityProblems(scan, job.Steps[issueIdx])) == 0 {
+		t.Errorf("-no-fail scan: the gate accepted an unreachable issue step")
+	}
+	issue := job.Steps[issueIdx]
+	issue.If = ""
+	if len(govulnReachabilityProblems(job.Steps[scanIdx], issue)) == 0 {
+		t.Errorf("ungated issue step: the gate accepted a step without failure()/schedule")
+	}
+}
+
 func readCIWorkflow(t *testing.T) workflowFile {
 	t.Helper()
 

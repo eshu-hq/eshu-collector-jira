@@ -1,6 +1,6 @@
 module github.com/eshu-hq/eshu-collector-jira
 
-go 1.26.5
+go 1.26.10
 
 require (
 	github.com/eshu-hq/eshu/sdk/go/collector v0.2.0

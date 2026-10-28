@@ -37,6 +37,11 @@ type workflowStep struct {
 	Run  string            `yaml:"run"`
 	With map[string]any    `yaml:"with"`
 	Env  map[string]string `yaml:"env"`
+	// If holds the step's `if:` condition; ContinueOnError holds
+	// `continue-on-error:`. Both default to the zero value when absent.
+	// The govulncheck reachability test reads them; other tests ignore them.
+	If              string `yaml:"if"`
+	ContinueOnError bool   `yaml:"continue-on-error"`
 }
 
 // needsList accepts the scalar (`needs: changes`) and sequence
