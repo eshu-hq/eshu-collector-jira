@@ -258,7 +258,8 @@ go test -race -count=1 ./...
 ```
 
 `scripts/run-conformance.sh` runs the gate CI runs
-(`.github/workflows/ci.yml`; the `ci-complete` job aggregates the others).
+(`.github/workflows/ci.yml`; the `go-ci / ci-complete` check aggregates
+the upstream lanes).
 
 ## Copied code
 

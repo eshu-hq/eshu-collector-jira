@@ -1,3 +1,26 @@
+# CI gates for eshu-collector-jira (org gate contract, epic #3).
+#
+# Thin caller over the shared lane bodies in
+# eshu-hq/.github/.github/workflows/go-collector-ci.yml (v2, pinned below):
+# this file holds the paths-filter `changes` job, the `go-ci` call with
+# this repo's run-gate wiring, and the two caller-side jobs the reusable
+# cannot own (weekly findings issue, Security-tab upload). Lane bodies
+# (lint/test/race/shell/image/boundary/govulncheck/gosec/actionlint and
+# the ci-complete aggregator) live upstream; check runs nest as
+# `go-ci / <lane>`, so the ruleset requires `go-ci / ci-complete`.
+#
+# Pinned actions (re-verify with git ls-remote when auditing; Dependabot
+# github-actions proposes bumps, weekly grouped):
+#   actions/checkout v7.0.1              3d3c42e5aac5ba805825da76410c181273ba90b1
+#   dorny/paths-filter v4                ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+#   actions/download-artifact v7         37930b1c2abaa49bbe596cd826c3c89aef350131
+#   github/codeql-action/upload-sarif v4.39.1 9b3254085494b55a0f7c4c2b3d2d52cc712ce370
+#   eshu-hq/.github v2                   4d01ab90baf5dd77c21cc1ee6bdf701332613449
+# Go tools (passed as inputs; hash-verified by the toolchain on install):
+#   golangci-lint v2.12.2, govulncheck v1.9.0 (-scan package),
+#   gosec v2.30.0 (this repo's measured zero-finding baseline; #11 triaged
+#   the seed-dest G301 as a false positive), actionlint v1.7.12 (tarball,
+#   sha256-checked upstream).
 name: ci
 
 on:
@@ -7,13 +30,14 @@ on:
       - main
   schedule:
     # Weekly scanner record (govulncheck + gosec SARIF). Findings open or
-    # update an issue; see the govulncheck job.
+    # update an issue; see the scheduled-findings job.
     - cron: "0 3 * * 1"
 
-# Fork-safe PR lanes: read-only token, no configured secrets (only the
-# automatic GITHUB_TOKEN, used solely by the schedule-only issue step).
-permissions:
-  contents: read
+# Fork-safe PR lanes: top-level permissions stay empty (the go-ci call
+# holds its own contents: read to fetch the upstream definition), and no
+# caller step touches a configured secret (only the automatic GITHUB_TOKEN,
+# used solely by the weekly-findings issue step).
+permissions: {}
 
 # Cancel superseded runs per PR (or per ref for pushes and schedules).
 concurrency:
@@ -22,12 +46,16 @@ concurrency:
 
 jobs:
   changes:
-    # Path selection runs once, on pull requests. Pushes to main and the
-    # weekly schedule skip this job and run every lane: each lane treats a
-    # non-successful changes result as "run" (fail closed).
-    if: github.event_name == 'pull_request'
+    # Path selection runs on pull requests and pushes to main. The weekly
+    # schedule skips this job and the go-ci call's always() keeps the scan
+    # lanes reachable: every run-* input treats a skipped changes job as
+    # "no" except the schedule-gated scanners.
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       go: ${{ steps.filter.outputs.go }}
       fixtures: ${{ steps.filter.outputs.fixtures }}
@@ -35,11 +63,13 @@ jobs:
       deps: ${{ steps.filter.outputs.deps }}
       image: ${{ steps.filter.outputs.image }}
       workflows: ${{ steps.filter.outputs.workflows }}
+      misc: ${{ steps.filter.outputs.misc }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: filter
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
+          predicate-quantifier: 'some-with-excludes'
           filters: |
             go:
               # Go sources plus everything compiled or embedded into the
@@ -57,13 +87,18 @@ jobs:
               - '.golangci.yml'
             fixtures:
               # Files tests open that are NOT in the go class: the root
-              # example fixtures (grant_test.go reads grant.example.json).
-              # testdata/** and manifest.yaml also match these globs, but
-              # the go class wins for lane routing, so a root-JSON-only PR
-              # runs test only while a testdata PR runs lint, test, race.
+              # example fixtures (grant_test.go reads grant.example.json)
+              # and the grant-recording script it opens
+              # (scripts/record-grants.sh). testdata/** and manifest.yaml
+              # also match these globs, but the go class wins for lane
+              # routing, so a root-JSON-only PR runs test only while a
+              # testdata PR runs lint, test, race.
+              - 'testdata/**'
               - '**/*.json'
               - '**/*.yaml'
               - '**/*.yml'
+              - '*.example.*'
+              - 'scripts/record-grants.sh'
             shell:
               - '**/*.sh'
             deps:
@@ -72,216 +107,132 @@ jobs:
             image:
               - 'Dockerfile'
               - '.dockerignore'
+              - 'manifest.yaml'
+              - 'go.mod'
+              - 'go.sum'
             workflows:
               - '.github/workflows/**'
+              - '.github/dependabot.yml'
+            misc:
+              # Fail closed: anything the named classes do not cover still
+              # proves the Go lanes (a Makefile edit must show the lanes
+              # work). Only docs stay exempt so docs-only PRs run no lane.
+              - '**'
+              - '!**/*.go'
+              - '!go.mod'
+              - '!go.sum'
+              - '!.golangci.yml'
+              - '!manifest.yaml'
+              - '!testdata/**'
+              - '!**/*.json'
+              - '!**/*.yaml'
+              - '!**/*.yml'
+              - '!*.example.*'
+              - '!scripts/record-grants.sh'
+              - '!**/*.sh'
+              - '!Dockerfile'
+              - '!.dockerignore'
+              - '!.github/workflows/**'
+              - '!.github/dependabot.yml'
+              - '!README.md'
+              - '!LICENSE'
 
-  lint:
-    if: always() && (needs.changes.result != 'success' || needs.changes.outputs.go == 'true' || needs.changes.outputs.workflows == 'true')
-    needs: changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
-      - name: vet
-        run: go vet ./...
-      - name: lint (whole repo, no baseline)
-        run: golangci-lint run ./...
-      - name: format check (gofumpt)
-        run: golangci-lint fmt --diff ./...
-      - name: tidy check
-        run: |
-          go mod tidy -diff
-          git diff --exit-code -- go.mod go.sum
-      - name: 500-line file cap (wc -l, sole static gate)
-        run: |
-          over=$(find . -name '*.go' -not -path './vendor/*' -not -path './.git/*' -exec wc -l {} + | awk '$1 > 500 && $2 != "total" {print}')
-          if [ -n "$over" ]; then echo "$over"; echo "FAIL: .go files over 500 lines"; exit 1; fi
-      - name: actionlint
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 .github/workflows/*.yml
-
-  test:
-    # Shell scripts ride along: grant_test.go reads
-    # scripts/record-grants.sh, so a script change can break tests.
-    if: always() && (needs.changes.result != 'success' || needs.changes.outputs.go == 'true' || needs.changes.outputs.fixtures == 'true' || needs.changes.outputs.shell == 'true' || needs.changes.outputs.workflows == 'true')
-    needs: changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-      - name: build
-        run: go build ./...
-      - name: test
-        run: go test ./... -count=1
-
-  race:
-    if: always() && (needs.changes.result != 'success' || needs.changes.outputs.go == 'true' || needs.changes.outputs.workflows == 'true')
-    needs: changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
+  go-ci:
+    # always(): changes runs only on pull_request/push, so without this the
+    # call (and every lane, plus the failure-gated weekly filing job) is
+    # skipped on schedule runs.
+    if: always()
+    needs: [changes]
+    # contents:read is the minimum that can fetch the reusable workflow
+    # definition upstream; inner jobs run under the reusable's own
+    # contents:read declaration. Top-level stays empty (fork-safe).
+    permissions:
+      contents: read
+    # No timeout-minutes here: a reusable-call job accepts only name/uses/
+    # with/secrets/needs/if/permissions, so the run ceiling lives in the
+    # upstream inner-lane timeouts.
+    uses: eshu-hq/.github/.github/workflows/go-collector-ci.yml@4d01ab90baf5dd77c21cc1ee6bdf701332613449 # v2
+    with:
+      module: jira
+      go-version-file: go.mod
       # Total statement coverage floor. May only rise. Measured 92.0% when
       # the gate landed; the finish line is 90%.
-      COVERAGE_FLOOR: 90
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-      - name: race + coverprofile
-        run: go test ./... -race -count=1 -covermode=atomic -coverprofile=coverage.out
-      - name: coverage totals
-        run: go tool cover -func=coverage.out >> "$GITHUB_STEP_SUMMARY"
-      - name: enforce floor
-        run: |
-          total=$(go tool cover -func=coverage.out | awk '/^total:/ {gsub(/%/, "", $3); print $3}')
-          echo "total=${total}% floor=${COVERAGE_FLOOR}%"
-          if awk -v t="$total" -v f="$COVERAGE_FLOOR" 'BEGIN { exit (t + 0 >= f + 0) ? 0 : 1 }'; then
-            echo "coverage ${total}% meets floor ${COVERAGE_FLOOR}%"
-          else
-            echo "FAIL: coverage ${total}% below floor ${COVERAGE_FLOOR}%" >&2
-            exit 1
-          fi
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: coverage
-          path: coverage.out
-          retention-days: 14
+      coverage-floor: 90
+      run-image: ${{ github.event_name == 'push' || needs.changes.outputs.image == 'true' || needs.changes.outputs.go == 'true' }}
+      image-tag: eshu-collector-jira:ci
+      image-context: .
+      image-command: |
+        set -euo pipefail
+        seed="$RUNNER_TEMP/seed"
+        mkdir -p "$seed" && chmod 777 "$seed"
+        docker run --rm --network none -v "$seed:/component" eshu-collector-jira:ci seed --dest /component
+        test -x "$seed/collector"
+        test -s "$seed/manifest.yaml"
+        test -f .dockerignore
+        test -z "$(grep -E '^FROM ' Dockerfile | grep -v '@sha256:')"
+        test "$(awk '/^go / {print $2}' go.mod)" = "$(grep -E -o 'golang:[0-9.]+' Dockerfile | head -1 | cut -d: -f2)"
+      run-lint: ${{ github.event_name == 'push' || needs.changes.outputs.go == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.misc == 'true' }}
+      # Shell scripts ride along only through the fixtures class:
+      # scripts/record-grants.sh is opened by grant_test.go, so editing it
+      # selects test; any other script change runs shell only.
+      run-test: ${{ github.event_name == 'push' || needs.changes.outputs.go == 'true' || needs.changes.outputs.fixtures == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.misc == 'true' }}
+      run-race: ${{ github.event_name == 'push' || needs.changes.outputs.go == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.misc == 'true' }}
+      run-shell: ${{ github.event_name == 'push' || needs.changes.outputs.shell == 'true' }}
+      run-boundary: ${{ github.event_name == 'push' || needs.changes.outputs.go == 'true' || needs.changes.outputs.workflows == 'true' || needs.changes.outputs.misc == 'true' }}
+      boundary-command: go test -count=1 -run TestImportBoundaryRejectsCoreAndCrossCollectorImports .
+      run-govulncheck: ${{ github.event_name == 'push' || github.event_name == 'schedule' || needs.changes.outputs.deps == 'true' }}
+      run-gosec: ${{ github.event_name == 'push' || github.event_name == 'schedule' || needs.changes.outputs.go == 'true' || needs.changes.outputs.workflows == 'true' }}
+      # Findings fail scheduled runs so the failure()-gated issue job
+      # below is reachable; PR runs stay advisory green.
+      gosec-fail-on-findings: ${{ github.event_name == 'schedule' }}
+      gosec-version: v2.30.0 # this repo's measured zero-finding baseline, see #11
+      run-actionlint: ${{ github.event_name == 'push' || github.event_name == 'schedule' || needs.changes.outputs.workflows == 'true' }}
 
-  shell:
-    if: always() && (needs.changes.result != 'success' || needs.changes.outputs.shell == 'true')
-    needs: changes
+  scheduled-findings:
+    # The reusable runs contents:read-only, so weekly issue filing stays a
+    # caller job. Fires only when go-ci failed on a schedule event.
+    needs: [go-ci]
+    if: failure() && github.event_name == 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: shellcheck
-        uses: ludeeus/action-shellcheck@00b27aa7cb85167568cb48a3838b75f4265f2bca
-        with:
-          scandir: .
-
-  image:
-    if: always() && (needs.changes.result != 'success' || needs.changes.outputs.image == 'true' || needs.changes.outputs.go == 'true')
-    needs: changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Build the image without pushing it
-        run: docker build -t eshu-collector-jira:ci .
-      - name: Seed contract
-        # manifest_test.go (in the test and race lanes) fails loud if
-        # manifest.yaml ever carries a real digest: the repository manifest
-        # keeps the all-zero placeholder permanently because it is
-        # go:embed'ed into the image. See the README "Releasing" section
-        # and scripts/pin-digest.sh for the release-side flow.
-        run: |
-          seed="$RUNNER_TEMP/seed"
-          mkdir -p "$seed" && chmod 777 "$seed"
-          docker run --rm --network none -v "$seed:/component" eshu-collector-jira:ci seed --dest /component
-          test -x "$seed/collector"
-          test -s "$seed/manifest.yaml"
-
-  govulncheck:
-    # Required through ci-complete when go.mod or go.sum change; also runs
-    # on pushes to main and on the weekly schedule, where findings open or
-    # update an issue. govulncheck exits non-zero on findings: that is the
-    # gate, not noise.
-    if: always() && (needs.changes.result != 'success' || needs.changes.outputs.deps == 'true')
-    needs: changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
     permissions:
       contents: read
       issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-      - name: govulncheck
-        # -scan package: the default symbol mode builds an SSA call graph
-        # that panics on Go 1.26 generics; package mode is strictly more
-        # conservative (flags an imported vulnerable package even when no
-        # vulnerable symbol is called), so it never hides a vulnerability.
+      - name: file or update the weekly findings issue
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
-          govulncheck -scan package ./...
-      - name: file issue on scheduled findings
-        if: failure() && github.event_name == 'schedule'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          title="govulncheck findings $(date -u +%F)"
-          body="Scheduled govulncheck failed on ${GITHUB_SHA}. See ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Triage in the open; never blanket-exclude."
-          if [ "$(gh issue list --state open --search "${title} in:title" --json number --jq 'length')" -eq 0 ]; then
-            gh issue create --title "$title" --body "$body"
+          title="[ci] weekly scan findings $(date -u +%F)"
+          body="Scheduled govulncheck/gosec failed on ${{ github.sha }}. See run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}."
+          open=$(gh issue list --search "$title in:title" --state open --json number --jq '.[0].number')
+          if [ -n "$open" ] && [ "$open" != "null" ]; then
+            gh issue comment "$open" --body "$body"
           else
-            echo "an issue for these findings is already open"
+            gh issue create --title "$title" --label bug --body "$body"
           fi
 
-  gosec:
-    # Advisory until the false-positive rate here is measured: findings are
-    # reported to the job summary and uploaded to the Security tab, and are
-    # triaged in the open, never blanket-excluded. The job itself stays
-    # green so an un-triaged finding cannot block a merge.
-    if: always() && (needs.changes.result != 'success' || needs.changes.outputs.go == 'true' || needs.changes.outputs.workflows == 'true')
-    needs: changes
+  gosec-sarif:
+    # Security-tab upload the reusable deliberately omits (fork PRs run
+    # read-only): caller-side, non-PR events only, and continue-on-error
+    # so a 403 never turns into a silent green no-op. Skips when go-ci
+    # failed: the finding count stays in that run's summary and the
+    # weekly issue links the run.
+    needs: [go-ci]
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
     permissions:
       contents: read
       security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          go-version-file: go.mod
-      - name: gosec scan (advisory)
-        # -no-fail plus a finding count: gosec's bundled type loader cannot
-        # fully load some Go 1.26 generics and exits non-zero even with zero
-        # findings. Emit SARIF once (a second text pass doubles the slow SSA
-        # walk) and gate on the result count instead of the exit code.
-        run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.30.0
-          gosec -no-fail -fmt=sarif -out gosec.sarif ./...
-          count=$(jq '[.runs[].results[]] | length' gosec.sarif)
-          echo "gosec findings: ${count} (advisory; triage in the Security tab, never blanket-excluded)"
-          echo "### gosec (advisory): ${count} finding(s)" >> "$GITHUB_STEP_SUMMARY"
-      - uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+          name: gosec-jira
+          path: ${{ github.workspace }}
+      - name: upload SARIF
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: gosec.sarif
         continue-on-error: true
-
-  ci-complete:
-    needs: [changes, lint, test, race, shell, image, govulncheck, gosec]
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: aggregate (pass when needed lanes passed or legitimately skipped)
-        run: |
-          python3 - <<'EOF'
-          import json, os
-          # NEEDS_JSON is toJSON(needs): {job: {"result": ..., "outputs": ...}}.
-          # NOTE: comparing whole job OBJECTS to "failure" never matches
-          # (false-green); expanding needs.*.result gives a bare ARRAY that
-          # kills green runs on AttributeError. Compare v["result"] instead.
-          # Never change this shape without a seeded red proof.
-          needs = json.loads(os.environ["NEEDS_JSON"])
-          bad = {k: v.get("result") for k, v in needs.items()
-                 if isinstance(v, dict) and v.get("result") in ("failure", "cancelled")}
-          if bad:
-              print("FAIL:", bad)
-              raise SystemExit(1)
-          print("ci-complete: pass (skips allowed)")
-          EOF
-        env:
-          NEEDS_JSON: ${{ toJSON(needs) }}
