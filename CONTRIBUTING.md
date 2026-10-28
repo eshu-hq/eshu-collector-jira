@@ -5,10 +5,13 @@ commands CI runs. CI stays authoritative; `make ci` is the whole local
 contract.
 
 CI runs each pull request through path-selected lanes
-(`.github/workflows/ci.yml`). A docs-only change runs no lane. Everything
-else a lane needs is in the workflow: `go.mod` is the Go version source,
-`COVERAGE_FLOOR` (currently 90, may only rise) gates the race lane, and the
-`ci-complete` aggregator is the only check the branch ruleset requires.
+(`.github/workflows/ci.yml`). A docs-only change runs no lane. A Go-source
+change also runs the `image` lane: the Dockerfile builds the binary from Go
+sources and `go.mod`/`go.sum`, so a go-class change must validate the image
+build. Everything else a lane needs is in the workflow: `go.mod` is the Go
+version source, `COVERAGE_FLOOR` (currently 90, may only rise) gates the race
+lane, and the `ci-complete` aggregator is the only check the branch ruleset
+requires.
 
 Three rules have no exceptions:
 

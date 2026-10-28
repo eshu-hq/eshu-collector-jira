@@ -71,7 +71,10 @@ type workflowFile struct {
 		Permissions map[string]string `yaml:"permissions"`
 		Timeout     int               `yaml:"timeout-minutes"`
 		Env         map[string]string `yaml:"env"`
-		Steps       []workflowStep    `yaml:"steps"`
+		// If holds the job's `if:` condition. The image-lane test reads
+		// it; other tests ignore it.
+		If    string         `yaml:"if"`
+		Steps []workflowStep `yaml:"steps"`
 	} `yaml:"jobs"`
 }
 
