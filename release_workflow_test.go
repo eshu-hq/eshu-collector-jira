@@ -73,7 +73,12 @@ type workflowFile struct {
 		Env         map[string]string `yaml:"env"`
 		// If holds the job's `if:` condition. The image-lane test reads
 		// it; other tests ignore it.
-		If    string         `yaml:"if"`
+		If string `yaml:"if"`
+		// Uses and With hold a reusable-workflow call (`uses:` plus its
+		// `with:` inputs). Inline lane jobs leave both empty; the
+		// reusable-call tests read them.
+		Uses  string         `yaml:"uses"`
+		With  map[string]any `yaml:"with"`
 		Steps []workflowStep `yaml:"steps"`
 	} `yaml:"jobs"`
 }
