@@ -30,3 +30,5 @@ case "${repo##*/}" in
 esac
 echo "Use this reference for the deployment (collector seed --image-ref, or seed.image):"
 echo "  ${repo}@${digest}"
+
+# ci-selection proof: shell-only change, runs shell lane only
