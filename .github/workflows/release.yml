@@ -1,9 +1,10 @@
 name: release
 
 # Publishes the collector image when a version tag is pushed. Nothing runs on a
-# pull request or a branch push, and nothing here deploys. A person copies the
-# digest from the job summary into the activation's seed.image (README,
-# "Releasing").
+# pull request or a branch push, and nothing here deploys. Main-branch images
+# (:main, :latest, :sha-<sha>) are published by image-publish.yml instead. A
+# person copies the digest from the job summary into the activation's
+# seed.image (README, "Releasing").
 on:
   push:
     tags:
