@@ -1,283 +1,163 @@
 # eshu-collector-jira
 
-Eshu Jira work-item collector, extracted from the Eshu core repository.
+Status: pre-release. Do not rely on it in production yet.
 
-**Pre-release. Holds no producer authority until its reviewed cutover
-(eshu-hq/eshu#8858).**
+This collector reads work items (issues) from one Jira Cloud site and hands Eshu a checked, redacted summary of what it found.
 
-The collector runs through the Eshu component-extension host with the
-`process` runner. The host writes one bounded `collector-sdk/v1alpha1` request
-to stdin and reads one result from stdout. The collector gets no Postgres,
-graph, queue, lease, or workflow handle, and it never imports
-`github.com/eshu-hq/eshu/go/internal/...` (`boundary_test.go` enforces this).
-The host builds the core fact envelope, validates the result, and owns claims
-and commits.
+Eshu is the core system. A collector is a small helper program: it reads one outside system, turns what it finds into facts (small, typed records), and gives those facts back to Eshu. This collector only reads Jira. It never writes to Jira.
 
 ## What it collects
 
-For the Jira Cloud site named by the claim it reads, through bounded REST calls:
+One run covers one Jira site, named by the job Eshu sends it (a claim). Through bounded Jira Cloud REST calls it reads issues changed in a time window (found with a JQL search; JQL is Jira's search language), each issue's change history and remote links (links to pages or code changes outside Jira), and project, issue-type, status, workflow, and field details for the site.
 
-- changed issues for a windowed JQL search, with changelog items and remote
-  links per issue;
-- project, issue-type, status, workflow, and field metadata.
+It returns 9 fact kinds, all at schema `1.0.0` with confidence `reported` (the source said so; Eshu did not check it directly):
 
-It emits the nine core `work_item.*` kinds at schema `1.0.0`:
-`record`, `transition`, `external_link`, `project_metadata`,
-`issue_type_metadata`, `status_metadata`, `workflow_metadata`,
-`field_metadata`, and `metadata_warning`. Summaries, names, account IDs, URLs,
-and titles are replaced by presence flags and fingerprints before emission.
+| Fact kind | One fact describes |
+| --- | --- |
+| `work_item.record` | one issue |
+| `work_item.transition` | one status change in an issue's history |
+| `work_item.external_link` | one remote link on an issue |
+| `work_item.project_metadata` | one project on the site |
+| `work_item.issue_type_metadata` | one issue type on the site |
+| `work_item.status_metadata` | one status on the site |
+| `work_item.workflow_metadata` | one workflow on the site |
+| `work_item.field_metadata` | one field on the site |
+| `work_item.metadata_warning` | site details the collector could not read |
 
-Result states: `complete`; `partial` when metadata the site hid or does not
-support became warning facts; `retryable` for rate limits, transport errors,
-and 5xx; `terminal` for permission, missing, archived, bad-request, invalid
-configuration, and exhausted-budget failures. A failed claim emits no facts.
-The collector never returns `unchanged`: the host sends no previous digest, so
-duplicate detection rides on `generation.freshness_hint`, which is a digest of
-the collection window and every emitted fact.
+Sensitive text is hidden before anything leaves the collector: issue summaries, people names, account IDs, web addresses, and link titles become yes/no flags and fingerprints (short hashes that show two values match without showing the value).
 
-## Configuration
+A run ends as `complete`, `partial` (some site details were hidden or unsupported and became warnings), `retryable` (try again later, for example after a rate limit), or `terminal` (stop; a person must fix something first). A failed run returns no facts. Eshu spots duplicate work with a freshness hint: a digest of the time window and every fact returned. The collector never returns `unchanged`, because the host sends no earlier digest to compare with.
 
-`config.example.yaml` is an activation config. The `config` map holds one Jira
-target: `site_id`, `base_url`, `email_env`, `token_env`, `jql` or `jql_env`,
-`issue_limit`, `updated_lookback`, `changelog_limit`, `remote_link_limit`,
-`metadata_limit`, and an optional `limits` block. Unknown keys fail closed:
-the rejection says `unknown field` and does not name the key (it can be a
-pasted credential), so compare the config with `config.example.yaml`.
-`token_env` and `email_env` name environment variables the worker exports.
-Secret values never appear in facts, source URIs, logs, or statuses. The three
-`*_env` keys must hold environment variable names (`^[A-Za-z_][A-Za-z0-9_]*$`,
-at most 128 bytes); a rejection message names the config key and never quotes
-what was configured, so a credential pasted into one of them cannot be echoed.
+## How data flows
 
-`allow_empty_successor` (default false, unchanged) is parsed. When true the claim
-fails closed with a terminal result whose status class is `unsupported_option`.
-The in-tree collector uses it to attest that an empty or sharply shrunken
-successor generation is legitimate; sending that attestation needs
-`Generation.TrustedDeletion`, which landed in eshu-hq/eshu after
-`sdk/go/collector` v0.2.0, and this repository does not hand-marshal
-unpublished wire fields. Removal condition: pin a collector SDK release that
-carries `TrustedDeletion`, then replace the rejection in `config.go` with the
-field.
+```mermaid
+flowchart LR
+  A["Jira Cloud site"] --> B["This collector"] --> C["Eshu host process"] --> D["Eshu core"]
+```
 
-A site with a large issue window returns more than the host's default 4 MiB
-stdout cap. Raise `process.stdout_limit_bytes` and `limits.maxResultBytes`
-together; the collector fails terminal with `result_budget_exceeded` rather
-than letting the host drop an oversized result.
+Text version: Jira Cloud site → this collector → Eshu host process (checks and stores the result) → Eshu core. The collector never talks to Eshu's database directly.
 
-## Claim time budget
+## When to use it, and when not to
 
-The host sets a claim's deadline to the **initial lease expiry** and kills the
-process there. Heartbeats do not extend it. The worker's default lease TTL is
-60 seconds (`ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL`), so one claim has at
-most that long to read the site unless the worker is configured for more. For a
-site with a large issue window, raise the worker lease TTL (for example to
-`5m`) and keep the heartbeat well inside it.
+Use it when Eshu needs current Jira issue, history, link, and site details for one Jira Cloud site, read on a schedule Eshu controls. Do not use it to change anything in Jira, to read more than one site in one setup (use one setup per site), or as a general Jira API tool. It reads only what the fact list above covers.
 
-The collector stops starting provider calls at the deadline minus
-`min(2s, 5% of the time left)` (a 60 s lease gives 58 s, a 10 s lease 9.5 s, a
-1 s lease 950 ms), cancels the call in flight, and returns a `retryable` result
-with failure class `claim_deadline_exceeded`. The result sets
-`retry_after_seconds`, which the worker honors on eshu `main` since
-eshu-hq/eshu#9008 (see "Operator signals"). The
-result carries no facts: a deadline stop is never `partial`, and facts read so
-far are dropped so an incomplete read cannot commit as a complete generation.
-The next attempt starts over, so a site that cannot finish inside the lease
-keeps failing with the same class until the lease TTL is raised. A missing
-deadline leaves only `limits.claimTimeoutSeconds` (default 300) as the bound; a
-deadline already passed fails at once without calling Jira.
+## How Eshu runs it
 
-## Operator signals
+Eshu's component host starts this program for one claim at a time: it sends one bounded `collector-sdk/v1alpha1` request on standard input (stdin) and reads one result from standard output (stdout).
 
-The extension host passes the **failure class** (`rate_limited`,
-`invalid_config`, `unsupported_option`, `claim_deadline_exceeded`, ...) from a
-claim's result to the work item. On eshu `main` since eshu-hq/eshu#9008 (a
-release carries it once one is cut after that change), the worker also sets a
-status recorder: it records every claim result as six
-`eshu_dp_component_extension_*` metrics and one `component extension result`
-log line, and it honors `retry_after_seconds`:
+```bash
+collector --sdk-stdio   # serve one claim from stdin
+```
 
-- **Recorded: source latency and fact count.** The collector fills them in, and
-  the host records them in the metrics above.
-- **Honored: `retry_after_seconds`.** The collector sends it on every retryable
-  result. The worker retries after the larger of the poll interval and that
-  request, capped at one hour, until the attempt budget is spent. The
-  `eshu_dp_component_extension_retry_after_seconds` gauge and the log line hold
-  the request, not the applied delay.
-- **Dropped: the stderr log line.** The collector writes one JSON line per
-  claim to stderr: the config rejection reason, the failed operation
-  (`search_issues`, `read_changelog`, ...), the HTTP status, and collection
-  counters. The host's process runner keeps stderr only as a byte count and
-  drops the text. The line is for a local run
-  (`collector --sdk-stdio < request.json`) and for tests.
-- **No spans or metrics.** The in-tree collector emitted a fetch span and fetch
-  counters. This collector has no equivalent. The manifest declares
-  `telemetry.metricsPrefix: eshu_dp_jira_collector_`, but nothing in this
-  repository emits a metric under it.
+The collector gets no database, graph, queue, or lease handle. The host builds the final fact envelope (the wrapper Eshu stores), checks the result, and owns claims and commits.
 
-The config rejection reason stays in the dropped stderr line, so find the cause
-of a rejected config by running the collector with the activation's config and
-a recorded request. The host records the failure class, not the reason.
-
-## Image and seeding
-
-The image holds one static binary that installs itself, so an init container
-needs no shell:
+The published image is `ghcr.io/eshu-hq/eshu-collector-jira`. It holds one static binary with no shell, and the binary can install itself into a component folder (how a startup, or init, container sets it up):
 
 ```bash
 collector seed --dest /component [--image-ref ghcr.io/eshu-hq/eshu-collector-jira@sha256:<digest>]
 ```
 
-writes `/component/collector` (mode 0755) and `/component/manifest.yaml`.
-`--image-ref REF` (or the `COLLECTOR_IMAGE_REF` environment variable; the flag
-wins) stamps the deployed digest-pinned reference into the manifest's artifact
-entry, because an image cannot embed its own digest. The repository manifest keeps the all-zero
-placeholder digest permanently (`manifest_test.go` fails on a real one), because
-it is embedded in the binary and a committed digest could only describe an older
-build. `scripts/pin-digest.sh <repo:tag>` only prints the `repo@sha256:...`
-reference of a pushed image; it edits nothing. `REF` must match
-`^[a-z0-9]+([._-][a-z0-9]+)*(:[0-9]+)?(/[a-z0-9]+([._-][a-z0-9]+)*)*@sha256:[0-9a-f]{64}$`
-after one trailing newline is trimmed; anything else (quotes, `$`, `#`,
-brackets, whitespace, a second newline) exits non-zero before a file is
-written, and the error never echoes the value. The reference is written
-literally and is the only manifest byte that changes. Without it the
-repository placeholder digest is written unchanged.
+This writes `/component/collector` (mode 0755) and `/component/manifest.yaml`. `--image-ref` (or the `COLLECTOR_IMAGE_REF` environment variable; the flag wins) stamps the exact deployed image reference into the manifest, because an image cannot contain its own digest. The manifest in this repository keeps an all-zero placeholder digest on purpose. A bad image reference fails before any file is written, and the error never echoes the value. `scripts/pin-digest.sh <repo:tag>` only prints the `repo@sha256:...` reference of a pushed image; it edits nothing.
 
-## Cutover identity
+## Configuration
 
-Replacing the in-tree Jira collector with this one must not re-key a single
-fact. Three activation values have to equal what the in-tree collector uses for
-the same site. The activation instance id must not:
+Copy `config.example.yaml`. It has three parts: `host` names the job identity Eshu plans, `process` says how Eshu starts the binary, and `config` holds this collector's own settings. Unknown keys are rejected, and the error does not name the bad key (the key could be a pasted secret), so compare your file with the example when a config is rejected.
 
-| Activation value | Rule | If the rule is broken |
-| --- | --- | --- |
-| `host.scope.id` | equals the in-tree target's `scope_id` (the `targets[].scope_id` in the in-tree collector instance configuration) | every stable key and `scope_id` changes: the site is ingested as a new scope |
-| `host.scope.kind` | equals `jira_site` | the scope no longer matches the in-tree scope kind |
-| `host.sourceSystem` | equals the in-tree source system, `jira` | `source_ref` and `source_system` change on every fact |
-| activation instance id (`--instance`) | is a new id that differs from the in-tree collector instance id | the coordinator reports a `duplicate collector instance` configuration error and does not start, because it refuses two collector instances with one id |
+| `config` key | Meaning |
+| --- | --- |
+| `site_id`, `base_url` | Jira site host and web address, for example `example.atlassian.net` and `https://example.atlassian.net` |
+| `email_env`, `token_env` | Names of environment variables that hold the login email and API token |
+| `jql` or `jql_env` | The JQL search text, or the name of a variable that holds it. Exactly one is required |
+| `issue_limit`, `updated_lookback` | Most issues per claim; how far back to look for changes (for example `24h`) |
+| `changelog_limit`, `remote_link_limit` | Most history items and remote links to read per issue |
+| `metadata_limit` | Most site-detail records to read |
+| `allow_empty_successor` | Leave `false`; `true` is refused for now (see below) |
+| `limits.*` | Size and time caps for one claim (see below) |
 
-Because the instance id is new, the `collector_instance_id` field in the
-`work_item.record` payload changes at cutover. Stable keys do not change: they
-are built from the provider, `scope_id`, and the issue or metadata ids, not from
-the instance id. The freshness hint covers the payload, so the first claim after
-cutover stores a fresh generation.
+`allow_empty_successor: true` would mean "an empty or much smaller result is correct; let it replace the old one." This build cannot send that promise yet, so it refuses the setting with failure class `unsupported_option` instead of pretending.
 
-The collector copies `scope_id`, `collector_instance_id`, and `source_system`
-from the claim the host sends; it has no setting of its own for them. A
-`scope_id` in `config` is only a cross-check and is rejected when it differs
-from `host.scope.id`.
+## Credentials
 
-Before enabling an activation, read the scope id and the source system from the
-live in-tree collector instance configuration and write them into the
-activation. Do not copy the placeholder scope id in `config.example.yaml`
-(`jira:site:example`). Pick an instance id that no in-tree instance uses. Run
-only one of the two collectors per site: with the same scope id they would write
-the same stable keys.
+Secrets never go in the config file. `email_env`, `token_env`, and `jql_env` name environment variables the worker process already has — for example, `token_env: JIRA_API_TOKEN` means "read the token from the variable called `JIRA_API_TOKEN`." Each value must be a plain variable name (letters, digits, underscores; at most 128 bytes). Secret values never appear in facts, source addresses, logs, or status messages, and error messages name the config key, never the value.
 
-## Producer grants
+## Time and size limits
 
-All nine kinds are core-owned, so the host refuses them without a live producer
-grant. `grant.example.json` lists the nine requests. Each grant is bound to this
-component id and version and scoped to the manifest's collector kind (`jira`),
-not to a site: core matches a grant's scope against the collector kinds the
-manifest declares. `scripts/record-grants.sh` records them with
-`eshu component grant` in a component home. Core issues grants; this
-repository only ships the request.
+Eshu gives each claim a deadline (the first lease expiry; heartbeat messages do not extend it) and stops the process there. The default lease is 60 seconds, set with `ESHU_COMPONENT_COLLECTOR_CLAIM_LEASE_TTL` on the worker; a large site needs more (the reference setup uses 5 minutes with a 30-second heartbeat). The collector stops starting new Jira calls shortly before the deadline (the smaller of 2 seconds or 5% of the time left), cancels the call in progress, and returns `retryable` with failure class `claim_deadline_exceeded` and no facts — dropping finished work stops a half-finished read from being stored as complete. With no deadline, `limits.claimTimeoutSeconds` (default 300) is the only time bound, and an already-passed deadline fails at once, before any Jira call.
 
-## Conformance
+Size caps live under `config.limits`: `maxRecordsPerClaim`, `maxPayloadBytes` (one fact), and `maxResultBytes` (the whole result). A large result can pass the host's default 4 MiB output cap, so raise `process.stdout_limit_bytes` and `limits.maxResultBytes` together. The collector fails with `result_budget_exceeded` rather than let the host drop an oversized result.
 
-`conformance_test.go` runs the public SDK harness over the checked-in results in
-`testdata/conformance` (complete, partial, retryable, terminal) with the
-published payload schemas the manifest references. `go test
--update-conformance-fixtures -run TestConformanceFixturesAreCurrent .`
-rewrites them after a deliberate output change.
+## What operators see
 
-`eshu component inspect`, `verify`, and `conform` read the producer grants in
-the component home (`--component-home`) on eshu `main` since eshu-hq/eshu#8952
-(a release carries it once one is cut after that change), so they judge this
-manifest once the nine grants are recorded with `scripts/record-grants.sh`.
-Without the grants they reject it (`fact kind "work_item.record" is core-owned
-by Eshu ...`; `conform` shows that text under `--json`), as `install` and
-`enable` do. The Go harness above is the proof that runs in this repository.
+The main signal is the failure class on the work item, such as `rate_limited`, `invalid_config`, `unsupported_option`, or `claim_deadline_exceeded`. On current Eshu `main`, the worker also records each result as `eshu_dp_component_extension_*` metrics and one `component extension result` log line (including source wait time and fact counts), and it honors `retry_after_seconds`, the wait the collector asks for before a retry, capped at one hour.
 
-The manifest omits `consumerContracts.reducer.phases` on purpose. The only
-phase the SDK harness accepts for an optional component is
-`source_evidence_only:no_graph_truth`, which would be false here: the nine
-`work_item.*` kinds are core-owned and feed real reducers. `manifest_test.go`
-fails if a phase list is added back.
+The collector also writes one JSON line per claim to standard error (stderr) with the failed step, HTTP status, and counts. The host keeps only the byte count and drops the text, so that line helps only in a local run (`collector --sdk-stdio < request.json`) or in tests. To find why a config was rejected, run the binary locally with that config and a recorded request; the host records only the failure class. This collector emits no metrics or spans of its own: the manifest declares the prefix `eshu_dp_jira_collector_`, but nothing emits under it yet.
 
-## Releasing
+## Keeping the same identity when you switch
 
-`.github/workflows/release.yml` runs on every push to `main` and on every
-pushed tag `vMAJOR.MINOR.PATCH[-pre]`. Nothing runs on a pull request, and
-the workflow deploys nothing.
+If this collector replaces Eshu's built-in Jira collector for a site, three setup values must match the old ones, or Eshu will treat the same site as new data:
 
-A push to `main` publishes the moving `main`, `latest`, and
-`sha-<full-sha>` tags with the same signature and attestation hardening as a
-version release. Use a moving tag only where floating is intended; releases
-stay pinned to digests.
+| Setup value | Rule |
+| --- | --- |
+| `host.scope.id` | Must equal the old target's scope ID, or every stored key changes |
+| `host.scope.kind` | Must be `jira_site` |
+| `host.sourceSystem` | Must be `jira`, or the source label changes on every fact |
 
-The workflow refuses to publish a version release unless the tag points at
-the protected `main` head, so a `v*` tag cut from any other commit publishes
-nothing. As defense in depth, restrict who can create `v*` tags with a tag
-ruleset limited to maintainers.
+The activation instance ID (`--instance`) must be new and different from the built-in collector's instance ID; two collectors with one ID stop the coordinator from starting. Only the `collector_instance_id` field inside `work_item.record` changes; stored keys do not. Read the real values from the live built-in setup, never copy the placeholder (`jira:site:example`), and run only one of the two collectors per site.
 
-1. Set `metadata.version` in `manifest.yaml` to the version you are releasing
-   and merge that change to `main`. Then tag the merge commit and push the tag.
-   The workflow refuses to publish unless the tag equals `v` plus that version
-   (a `-pre-release` suffix on the tag is allowed when the manifest version has
-   none), and it checks this before it builds or pushes anything.
-2. The workflow builds `linux/amd64` (the only platform the manifest declares),
-   pushes `ghcr.io/eshu-hq/eshu-collector-jira:<tag>` (or `:main`,
-   `:latest`, and `:sha-<full-sha>` for a `main` push), writes the
-   digest to the job summary, signs the digest with cosign (keyless), and
-   attaches a SLSA
-   build-provenance attestation and an SPDX SBOM attestation. It needs no
-   secret beyond the job's `GITHUB_TOKEN`.
-3. Copy the `ghcr.io/eshu-hq/eshu-collector-jira@sha256:<digest>` reference
-   from the job summary into the activation's `seed.image`. The deployment
-   stamps it into the manifest with `collector seed --image-ref`; the
-   repository manifest is not edited.
-4. Check the image before enabling an activation:
+## Permission to publish facts
+
+All 9 fact kinds belong to Eshu core, so the host refuses them without a producer grant (written permission for this component to publish that kind). `grant.example.json` lists the 9 requests, each tied to this component and version and scoped to `jira`; record them with `scripts/record-grants.sh` (it calls `eshu component grant`). Eshu core issues grants; this repository only ships the request. For checks, `conformance_test.go` runs the public SDK harness over saved results in `testdata/conformance`; refresh them with `go test -update-conformance-fixtures -run TestConformanceFixturesAreCurrent .` after a deliberate output change.
+
+## Eshu dependencies
+
+Exact versions from `go.mod`. Do not substitute another SDK line.
+
+| Module | Version |
+| --- | --- |
+| Go | `1.26.10` |
+| `github.com/eshu-hq/eshu/sdk/go/collector` | `v0.2.0` |
+| `github.com/eshu-hq/eshu/sdk/go/factschema` | `v0.2.0` |
+| `gopkg.in/yaml.v3` | `v3.0.1` |
+
+The component ID is `dev.eshu.collector.jira`, version `0.1.0`. It declares support for Eshu core `>=0.0.5 <0.2.0` and speaks `collector-sdk/v1alpha1` over the process adapter (see `manifest.yaml`). Check that range against your core version before enabling it; a mismatch makes the host refuse the component.
+
+## What it never does
+
+- It never writes to Jira or changes an issue, and it never stores anything itself — the host validates and commits.
+- It never imports Eshu core internals or another collector; `boundary_test.go` fails the build if that changes.
+- It never puts secrets, raw summaries, names, account IDs, or full web addresses into facts, logs, or status messages.
+
+Three helper folders (`internal/stableid`, `internal/httpx`, `internal/repoid`) copy small Eshu core helpers that a standalone repo cannot import yet. Tests pin them to the original behavior; they will be replaced when the shared SDK helpers are published.
+
+## Build, test, and release
 
 ```bash
-cosign verify ghcr.io/eshu-hq/eshu-collector-jira@sha256:<digest> \
-  --certificate-identity-regexp '^https://github.com/eshu-hq/eshu-collector-jira/\.github/workflows/release\.yml@refs/tags/v' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-gh attestation verify oci://ghcr.io/eshu-hq/eshu-collector-jira@sha256:<digest> \
-  -R eshu-hq/eshu-collector-jira
-```
-
-The GHCR package must be **public**: GitHub creates a package private by
-default, so after the first release set its visibility to public (package
-settings) before a cluster tries to pull it without credentials.
-
-`compatibleCore` in `manifest.yaml` is enforced by release builds of Eshu core.
-Check it against the core version of the target environment before enabling an
-activation; a range that excludes that version makes the host refuse the
-component.
-
-## Build and test
-
-```bash
-go build ./...
-go vet ./...
+go build ./... && go vet ./...
 go test -race -count=1 ./...
+make ci   # lint + test + race; the full local check CI runs
 ```
 
-`scripts/run-conformance.sh` runs the gate CI runs
-(`.github/workflows/ci.yml`; the `go-ci / ci-complete` check aggregates
-the upstream lanes).
+`scripts/run-conformance.sh` runs the same gate as CI (`.github/workflows/ci.yml`, reported as `go-ci / ci-complete`). Releases run from `.github/workflows/release.yml` on every push to `main` and on version tags (`vMAJOR.MINOR.PATCH`, optional pre-release suffix). Nothing runs for a pull request, and the workflow deploys nothing. A `main` push publishes the moving `main`, `latest`, and `sha-<full-sha>` image tags — use moving tags only where floating is intended and pin real deployments to digests. A version tag must point at the protected `main` head and match `metadata.version` in `manifest.yaml`, or nothing is published. The workflow builds `linux/amd64`, pushes the image, writes the digest to the job summary, signs it with cosign (keyless), and attaches build-provenance and SBOM attestations, using no secret beyond `GITHUB_TOKEN`.
 
-## Copied code
+After a release, copy the `ghcr.io/eshu-hq/eshu-collector-jira@sha256:<digest>` reference from the job summary into the deployment and check it before use:
 
-Three small packages are copies of Eshu core code that is not importable from
-a standalone repository. Each is pinned by golden tests produced from the
-in-tree functions, and each is to be replaced by the published eshu-sdk helper
-when eshu-hq/eshu#8851 lands:
+```bash
+cosign verify ghcr.io/eshu-hq/eshu-collector-jira@sha256:<digest> --certificate-identity-regexp '^https://github.com/eshu-hq/eshu-collector-jira/\.github/workflows/release\.yml@refs/tags/v' --certificate-oidc-issuer https://token.actions.githubusercontent.com
+gh attestation verify oci://ghcr.io/eshu-hq/eshu-collector-jira@sha256:<digest> -R eshu-hq/eshu-collector-jira
+```
 
-- `internal/stableid`: `facts.StableID`, so stable keys match the in-tree
-  collector byte for byte.
-- `internal/httpx`: the bounded HTTP, retry-after, and failure-classification
-  helpers. It adds a response-size cap the in-tree helper lacks.
-- `internal/repoid`: `repositoryidentity.CanonicalRepositoryID`, for
-  `linked_repository_id` on pull-request and merge-request links.
+After the first release, set the GHCR package to public: GitHub creates packages as private, and a cluster cannot pull a private package without credentials. Restrict who can create `v*` tags to maintainers as well.
+
+## Docs and related projects
+
+- `config.example.yaml` — full setup example with comments; `manifest.yaml` — component identity, fact list, and core range; `grant.example.json` — the 9 grant requests.
+- [Eshu core](https://github.com/eshu-hq/eshu) — the host that runs this collector.
+- [eshu-sdk](https://github.com/eshu-hq/eshu-sdk) — shared SDK modules. [eshu-deploy](https://github.com/eshu-hq/eshu-deploy) — deployment examples and reference setups.
+
+## Contributing
+
+See `CONTRIBUTING.md`. In short: run `make ci` before pushing; it runs the same lint, test, and race checks as CI.
+
+## License
+
+MIT. See `LICENSE`.
