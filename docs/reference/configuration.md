@@ -83,7 +83,7 @@ Eshu core repo, not from `eshu-sdk`.
 
 | Module | Version |
 | --- | --- |
-| Go | `1.26.10` |
+| Go | `1.26.11` |
 | `github.com/eshu-hq/eshu/sdk/go/collector` | `v0.2.0` |
 | `github.com/eshu-hq/eshu/sdk/go/factschema` | `v0.2.0` |
 | `gopkg.in/yaml.v3` | `v3.0.1` |
