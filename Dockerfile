@@ -9,14 +9,14 @@
 #   ... seed --dest /home --image-ref REPO@sha256:<digest>
 #       (or COLLECTOR_IMAGE_REF) also stamps the deployed digest into the
 #       seeded manifest; the image cannot embed its own digest.
-FROM golang:1.26.10-alpine@sha256:a2012b4a1d1f9f7e9f44e0d39b805a901e856b1dd80b4e6ee4338db547050308 AS build
+FROM golang:1.26.11-alpine@sha256:ae52b5bc6ed045a9ed26ab03dc19327a802a9cc9aa8b27ed57f5c6b60579b0bb AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o /out/collector ./cmd/collector
 
-# Base digests resolved 2026-10-28; re-pin both when bumping either base.
+# Base digests resolved 2026-11-13; re-pin both when bumping either base.
 FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 COPY --from=build /out/collector /usr/local/bin/collector
 USER 65532:65532
