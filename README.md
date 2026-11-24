@@ -66,6 +66,7 @@ Eshu core repo, not in a separate SDK repo.
   holds those SDK modules.
 - [eshu-deploy](https://github.com/eshu-hq/eshu-deploy) has deployment
   examples. It's related reading only; nothing here depends on it.
+- [Collector and Reducer Readiness](https://github.com/eshu-hq/eshu/blob/main/docs/public/reference/collector-reducer-readiness.md), [Start Here](https://github.com/eshu-hq/eshu/blob/main/docs/public/start-here.md), and the 31-repo [Repository Map](https://github.com/eshu-hq/eshu/blob/main/REPOSITORIES.md).
 
 ## Development
 
